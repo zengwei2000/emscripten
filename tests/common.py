@@ -1152,9 +1152,9 @@ def harness_server_func(in_queue, out_queue, port):
     # Add COOP, COEP, CORP, and no-caching headers
     def end_headers(self):
       self.send_header('Access-Control-Allow-Origin', '*')
-      self.send_header('Cross-Origin-Opener-Policy', 'same-origin')
-      self.send_header('Cross-Origin-Embedder-Policy', 'require-corp')
-      self.send_header('Cross-Origin-Resource-Policy', 'cross-origin')
+      #self.send_header('Cross-Origin-Opener-Policy', 'same-origin')
+      #self.send_header('Cross-Origin-Embedder-Policy', 'require-corp')
+      #self.send_header('Cross-Origin-Resource-Policy', 'cross-origin')
       self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
       return SimpleHTTPRequestHandler.end_headers(self)
 

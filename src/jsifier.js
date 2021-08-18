@@ -149,7 +149,7 @@ function ${name}(${args}) {
       }
 
       // if the function was implemented in compiled code, there is no need to include the js version
-      if (ident in WASM_EXPORTS) {
+      if (!MAIN_MODULE && ident in WASM_EXPORTS) {
         return '';
       }
 

@@ -25,7 +25,7 @@ from tools import diagnostics
 from tools import shared
 from tools import gen_struct_info
 from tools import webassembly
-from tools.shared import WINDOWS, path_from_root, exit_with_error, asmjs_mangle
+from tools.shared import WINDOWS, path_from_root, exit_with_error, asmjs_mangle, demangle_c_symbol_name
 from tools.shared import treat_as_user_function, strip_prefix
 from tools.settings import settings
 
@@ -112,11 +112,14 @@ def update_settings_glue(metadata, DEBUG):
   if settings.SIDE_MODULE:
     # we don't need any JS library contents in side modules
     settings.DEFAULT_LIBRARY_FUNCS_TO_INCLUDE = []
+  else:
+    all_funcs = set(settings.DEFAULT_LIBRARY_FUNCS_TO_INCLUDE).difference(metadata['exports'])
+    all_funcs.update(shared.JS.to_nice_ident(d) for d in metadata['declares'])
+    if not settings.RELOCATABLE:
+      all_funcs = set(all_funcs).difference(metadata['exports'])
 
-  all_funcs = settings.DEFAULT_LIBRARY_FUNCS_TO_INCLUDE + [shared.JS.to_nice_ident(d) for d in metadata['declares']]
-  settings.DEFAULT_LIBRARY_FUNCS_TO_INCLUDE = sorted(set(all_funcs).difference(metadata['exports']))
-
-  settings.DEFAULT_LIBRARY_FUNCS_TO_INCLUDE += metadata['globalImports']
+    settings.DEFAULT_LIBRARY_FUNCS_TO_INCLUDE = sorted(all_funcs)
+    settings.DEFAULT_LIBRARY_FUNCS_TO_INCLUDE += metadata['globalImports']
 
   settings.WASM_EXPORTS = metadata['exports'] + list(metadata['namedGlobals'].keys())
   # Store function exports so that Closure and metadce can track these even in
@@ -322,7 +325,11 @@ def emscript(in_wasm, out_wasm, outfile_js, memfile, DEBUG):
 
   pre, post = glue.split('// EMSCRIPTEN_END_FUNCS')
 
+  libfuncs = [demangle_c_symbol_name(s) for s in forwarded_json['libraryFunctions']]
   exports = metadata['exports']
+  exports = set(metadata['exports']).difference(metadata['declares'])
+  exports = exports.difference(libfuncs)
+  exports = sorted(exports)
 
   if settings.ASYNCIFY:
     exports += ['asyncify_start_unwind', 'asyncify_stop_unwind', 'asyncify_start_rewind', 'asyncify_stop_rewind']

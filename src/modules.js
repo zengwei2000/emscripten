@@ -140,6 +140,9 @@ var LibraryManager = {
       if (USE_SDL == 2) {
         libraries.push('library_egl.js', 'library_webgl.js', 'library_html5_webgl.js');
       }
+      if (USE_GLFW) {
+        libraries.push('library_glfw.js');
+      }
     }
 
     // Add any explicitly specified system JS libraries to link to, add those to link.

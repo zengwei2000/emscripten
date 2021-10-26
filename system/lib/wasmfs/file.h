@@ -148,7 +148,6 @@ public:
 
 // This class describes a file that lives in Wasm Memory.
 class MemoryFile : public DataFile {
-  std::vector<uint8_t> buffer;
 
   __wasi_errno_t write(const uint8_t* buf, size_t len, off_t offset) override;
 

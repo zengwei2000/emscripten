@@ -8,6 +8,7 @@
 
 #include "file.h"
 #include "file_table.h"
+#include "global_state.h"
 #include <emscripten/emscripten.h>
 #include <emscripten/html5.h>
 #include <errno.h>
@@ -409,7 +410,7 @@ long __syscall_chdir(long path) {
     return err;
   }
 
-  setCWD(dir);
+  GlobalFileState::get().setCWD(dir);
   return 0;
 }
 

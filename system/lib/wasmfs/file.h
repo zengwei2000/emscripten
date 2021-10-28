@@ -50,21 +50,36 @@ public:
   }
 
   class Handle {
-    std::unique_lock<std::mutex> lock;
 
   protected:
+    std::unique_lock<std::mutex> lock;
     std::shared_ptr<File> file;
 
   public:
     Handle(std::shared_ptr<File> file) : file(file), lock(file->mutex) {}
+    Handle(std::shared_ptr<File> file, std::defer_lock_t)
+      : file(file), lock(file->mutex, std::defer_lock) {}
+
+    bool trylock() { return lock.try_lock(); }
     size_t& size() { return file->size; }
     mode_t& mode() { return file->mode; }
     time_t& ctime() { return file->ctime; }
     time_t& mtime() { return file->mtime; }
     time_t& atime() { return file->atime; }
+    std::weak_ptr<File> getParent() { return file->parent; }
+    void setParent(std::weak_ptr<File> parent) { file->parent = parent; }
   };
 
   Handle locked() { return Handle(shared_from_this()); }
+
+  std::optional<Handle> maybeLocked() {
+    auto handle = Handle(shared_from_this(), std::defer_lock);
+    if (handle.trylock()) {
+      return std::make_optional<Handle>(shared_from_this());
+    } else {
+      return std::nullopt;
+    }
+  }
 
 protected:
   File(FileKind kind, mode_t mode) : kind(kind), mode(mode) {}
@@ -80,6 +95,9 @@ protected:
   time_t atime = 0; // Time when the content was last accessed.
 
   FileKind kind;
+
+  std::weak_ptr<File> parent; // Reference to parent of current file node that
+                              // has no ownership over the resource.
 };
 
 class DataFile : public File {
@@ -133,6 +151,16 @@ public:
       getDir()->entries[pathName] = inserted;
     }
 
+    std::string getName(std::shared_ptr<File> target) {
+      for (const auto& [key, value] : getDir()->entries) {
+        if (value == target) {
+          return key;
+        }
+      }
+
+      return "";
+    }
+
 #ifdef WASMFS_DEBUG
     void printKeys() {
       for (auto keyPair : getDir()->entries) {
@@ -148,6 +176,7 @@ public:
 
 // This class describes a file that lives in Wasm Memory.
 class MemoryFile : public DataFile {
+  std::vector<uint8_t> buffer;
 
   __wasi_errno_t write(const uint8_t* buf, size_t len, off_t offset) override;
 

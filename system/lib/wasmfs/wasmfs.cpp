@@ -335,6 +335,8 @@ __wasi_fd_t __syscall_open(long pathname, long flags, long mode) {
       // Create an empty in-memory file.
       auto created = std::make_shared<MemoryFile>(mode);
 
+      created->locked().setParent(parentDir);
+
       lockedParentDir.setEntry(base, created);
       auto openFile = std::make_shared<OpenFileState>(0, flags, created);
 
@@ -391,6 +393,8 @@ long __syscall_mkdir(long path, long mode) {
     // Create an empty in-memory directory.
     auto created = std::make_shared<Directory>(mode);
 
+    created->locked().setParent(parentDir);
+
     lockedParentDir.setEntry(base, created);
     return 0;
   }
@@ -411,6 +415,31 @@ long __syscall_chdir(long path) {
   }
 
   GlobalFileState::get().setCWD(dir);
+  return 0;
+}
+
+long __syscall_getcwd(long buf, long size) {
+  if (!buf && size > 0) {
+    return -EFAULT;
+  }
+
+  if (buf && size == 0) {
+    return -EINVAL;
+  }
+
+  // Obtain absolute path of the current cwd.
+  // copy into buf - inode_abspath(cwd, (char *)buf, size);
+  auto curr = GlobalFileState::get().getCWD();
+
+  while (curr != getRootDirectory()) {
+    auto parentDir = curr->locked().getParent().lock()->dynCast<Directory>();
+    auto name = parentDir->locked().getName(curr);
+
+    curr = parentDir;
+  }
+
+  // Prepend root directory.
+
   return 0;
 }
 

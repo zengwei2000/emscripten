@@ -15,8 +15,6 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-// FIXME: Merge with unlink test
-
 int main() {
   mkdir("working", 0777);
   chdir("working");

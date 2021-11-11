@@ -313,10 +313,6 @@ class TestCoreBase(RunnerCore):
   def is_wasm2js(self):
     return self.get_setting('WASM') == 0
 
-  # A simple check whether the compiler arguments cause optimization.
-  def is_optimizing(self):
-    return '-O' in str(self.emcc_args) and '-O0' not in self.emcc_args
-
   def can_use_closure(self):
     return '-g' not in self.emcc_args and '--profiling' not in self.emcc_args and ('-O2' in self.emcc_args or '-Os' in self.emcc_args)
 

@@ -5436,6 +5436,9 @@ main( int argv, char ** argc ) {
 
   @also_with_noderawfs
   def test_fs_nodefs_cloexec(self):
+    if self.get_setting('WASMFS'):
+      # WasmFS requires explicitly enabling the entire JS API
+      self.set_setting('FORCE_FILESYSTEM', '1')
     self.emcc_args += ['-lnodefs.js']
     self.do_runf(test_file('fs/test_nodefs_cloexec.c'), 'success')
 

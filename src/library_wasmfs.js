@@ -117,6 +117,44 @@ var WasmfsLibrary = {
       var linkpathBuffer = allocateUTF8OnStack(linkpath);
       __wasmfs_symlink(targetBuffer, linkpathBuffer);
     },
+    open: (path, flags, mode) => {
+      // Param normalization is copied from the JS FS API.
+      flags = typeof flags === 'string' ? FS.modeStringToFlags(flags) : flags;
+      mode = typeof mode === 'undefined' ? 438 /* 0666 */ : mode;
+
+      var pathBuffer = allocateUTF8OnStack(path);
+      var fd = __wasmfs_open(pathBuffer, flags, mode);
+      _free(pathBuffer);
+      return fd;
+    },
+    close: (file) => {
+      var pathBuffer = allocateUTF8OnStack(path);
+      __wasmfs_close(pathBuffer);
+      _free(pathBuffer);
+    },
+
+    // Internals
+    flagModes: {
+      // Extra quotes used here on the keys to this object otherwise jsifier will
+      // erase them in the process of reading and then writing the JS library
+      // code.
+      '"r"': {{{ cDefine('O_RDONLY') }}},
+      '"r+"': {{{ cDefine('O_RDWR') }}},
+      '"w"': {{{ cDefine('O_TRUNC') }}} | {{{ cDefine('O_CREAT') }}} | {{{ cDefine('O_WRONLY') }}},
+      '"w+"': {{{ cDefine('O_TRUNC') }}} | {{{ cDefine('O_CREAT') }}} | {{{ cDefine('O_RDWR') }}},
+      '"a"': {{{ cDefine('O_APPEND') }}} | {{{ cDefine('O_CREAT') }}} | {{{ cDefine('O_WRONLY') }}},
+      '"a+"': {{{ cDefine('O_APPEND') }}} | {{{ cDefine('O_CREAT') }}} | {{{ cDefine('O_RDWR') }}},
+    },
+
+    // convert the 'r', 'r+', etc. to it's corresponding set of O_* flags
+    modeStringToFlags: (str) => {
+      var flags = FS.flagModes[str];
+      if (typeof flags === 'undefined') {
+        throw new Error('Unknown file open mode: ' + str);
+      }
+      return flags;
+    },
+
 #endif
   },
   _wasmfs_get_num_preloaded_files__deps: ['$wasmFS$preloadedFiles'],

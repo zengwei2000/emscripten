@@ -91,4 +91,14 @@ long _wasmfs_chdir(char* path) { return __syscall_chdir((long)path); }
 void _wasmfs_symlink(char* old_path, char* new_path) {
   __syscall_symlink((long)old_path, (long)new_path);
 }
+
+__wasi_fd_t _wasmfs_open(char* pathname, long flags, long mode) {
+  // This basically just converts the varargs syscall into a non-varargs one,
+  // since JS can't call the varargs one directly.
+  return __syscall_open((long)pathname, flags, mode);
+}
+
+void _wasmfs_close(__wasi_fd_t fd) {
+  (void)__wasi_fd_close(fd);
+}
 }

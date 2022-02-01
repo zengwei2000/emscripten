@@ -1932,6 +1932,8 @@ def phase_linker_setup(options, state, newargs, settings_map):
         '_wasmfs_mkdir',
         '_wasmfs_chdir',
         '_wasmfs_symlink',
+        '_wasmfs_open',
+        '_wasmfs_close',
       ]
 
   # Explicitly drop linking in a malloc implementation if program is not using any dynamic allocation calls.

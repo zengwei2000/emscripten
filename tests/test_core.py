@@ -5441,6 +5441,9 @@ main( int argv, char ** argc ) {
       self.set_setting('FORCE_FILESYSTEM', '1')
     self.emcc_args += ['-lnodefs.js']
     self.do_runf(test_file('fs/test_nodefs_cloexec.c'), 'success')
+    # NODERAWFS creates a normal file in the real directory
+    if self.get_setting('NODERAWFS'):
+      self.assertExists('test.txt')
 
   def test_fs_nodefs_home(self):
     self.set_setting('FORCE_FILESYSTEM')

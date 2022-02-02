@@ -127,10 +127,8 @@ var WasmfsLibrary = {
       _free(pathBuffer);
       return fd;
     },
-    close: (path) => {
-      var pathBuffer = allocateUTF8OnStack(path);
-      __wasmfs_close(pathBuffer);
-      _free(pathBuffer);
+    close: (fd) => {
+      __wasmfs_close(fd);
     },
 
     // Internals

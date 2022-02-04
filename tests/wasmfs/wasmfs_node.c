@@ -31,9 +31,9 @@ void write_and_read(const char* msg, int fd) {
 }
 
 int main() {
-  backend_t backend = wasmfs_create_node_backend();
+  backend_t backend = wasmfs_create_node_backend("REAL_PWD");
 
-  // Create a new backend directoryfile under root.
+  // Create a new backend file under root.
   int fd = wasmfs_create_file("/testfile", 0777, backend);
 
   // Ensure that the size of the backend file is zero.

@@ -225,7 +225,10 @@ var WasmfsLibrary = {
 
   _wasmfs_init_node_backend_js__deps: ['$NODEFS'],
   _wasmfs_init_node_backend_js: function() {
+    // Windows requires special handling. Note if we are on such a platform.
     NODEFS.isWindows = !!process.platform.match(/^win/);
+
+    // Compute a mapping of our flags to node flags.
     var flags = process["binding"]("constants");
     // Node.js 4 compatibility: it has no namespaces for constants
     if (flags["fs"]) {

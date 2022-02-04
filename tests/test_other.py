@@ -11413,7 +11413,10 @@ void foo() {}
 
   def test_wasmfs_node(self):
     self.set_setting('WASMFS')
-    self.do_run_in_out_file_test('wasmfs/wasmfs_node.c')
+    self.do_run_in_out_file_test('wasmfs/wasmfs_node.c', emcc_args=[
+      '--profiling',
+      f'-DREAL_PWD="{os.getcwd()}"'
+    ])
 
   @disabled('Running with initial >2GB heaps is not currently supported on the CI version of Node')
   def test_hello_world_above_2gb(self):

@@ -223,8 +223,8 @@ var WasmfsLibrary = {
 
   NODEFS: {},
 
-  _wasmfs_init_node_backend_js__deps: ['$NODEFS'],
-  _wasmfs_init_node_backend_js: function() {
+  _wasmfs_node_backend_init_js__deps: ['$NODEFS'],
+  _wasmfs_node_backend_init_js: function() {
     // Windows requires special handling. Note if we are on such a platform.
     NODEFS.isWindows = !!process.platform.match(/^win/);
 

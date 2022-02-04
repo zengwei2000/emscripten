@@ -34,6 +34,12 @@ abort();
 
 public:
   NodeFile(mode_t mode, backend_t backend) : DataFile(mode, backend) {
+    _wasmfs_node_backend_
+abort();
+  }
+
+  !NodeFile() {
+    _wasmfs_node
 abort();
   }
 };
@@ -45,6 +51,7 @@ class NodeBackend : public Backend {
 
 public:
   NodeBackend(std::string outsidePath) : outsidePath(outsidePath) {}
+
   std::shared_ptr<DataFile> createFile(mode_t mode) override {
     return std::make_shared<NodeFile>(mode, this);
   }
@@ -52,7 +59,7 @@ public:
 
 // This function is exposed to users to instantiate a new JSBackend.
 extern "C" backend_t wasmfs_create_node_backend(char* outside_path) {
-  _wasmfs_init_node_backend_js();
+  _wasmfs_node_backend_init_js();
   return wasmFS.addBackend(std::make_unique<NodeBackend>(outside_path));
 }
 

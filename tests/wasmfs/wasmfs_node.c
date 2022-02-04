@@ -31,13 +31,9 @@ void write_and_read(const char* msg, int fd) {
 }
 
 int main() {
+  backend_t backend = wasmfs_create_node_backend();
 
-  backend_t backend = wasmfs_create_js_file_backend();
-#ifdef PROXYING
-  backend = wasmfs_create_proxied_backend(backend);
-#endif
-
-  // Create a new backend file under root.
+  // Create a new backend directoryfile under root.
   int fd = wasmfs_create_file("/testfile", 0777, backend);
 
   // Ensure that the size of the backend file is zero.

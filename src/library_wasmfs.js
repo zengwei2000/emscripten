@@ -218,6 +218,37 @@ var WasmfsLibrary = {
     // Add the index to the free list.
     wasmFS$JSMemoryFreeList.push(index);
   },
+
+  // Node.js backend
+
+  NODEFS: {},
+
+  _wasmfs_init_node_backend_js__deps: ['$NODEFS'],
+  _wasmfs_init_node_backend_js: function() {
+    NODEFS.isWindows = !!process.platform.match(/^win/);
+    var flags = process["binding"]("constants");
+    // Node.js 4 compatibility: it has no namespaces for constants
+    if (flags["fs"]) {
+      flags = flags["fs"];
+    }
+    NODEFS.flagsForNodeMap = {
+      "{{{ cDefine('O_APPEND') }}}": flags["O_APPEND"],
+      "{{{ cDefine('O_CREAT') }}}": flags["O_CREAT"],
+      "{{{ cDefine('O_EXCL') }}}": flags["O_EXCL"],
+      "{{{ cDefine('O_NOCTTY') }}}": flags["O_NOCTTY"],
+      "{{{ cDefine('O_RDONLY') }}}": flags["O_RDONLY"],
+      "{{{ cDefine('O_RDWR') }}}": flags["O_RDWR"],
+      "{{{ cDefine('O_DSYNC') }}}": flags["O_SYNC"],
+      "{{{ cDefine('O_TRUNC') }}}": flags["O_TRUNC"],
+      "{{{ cDefine('O_WRONLY') }}}": flags["O_WRONLY"],
+      "{{{ cDefine('O_NOFOLLOW') }}}": flags["O_NOFOLLOW"],
+    };
+#if ASSERTIONS
+    // The 0 define must match on both sides, as otherwise we would not
+    // know to add it.
+    assert(NODEFS.flagsForNodeMap["0"] === 0);
+#endif
+  },
 }
 
 mergeInto(LibraryManager.library, WasmfsLibrary);

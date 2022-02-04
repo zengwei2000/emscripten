@@ -7,30 +7,34 @@
 // to handle, giving access to the real filesystem.
 
 #include "backend.h"
-#include "emscripten.h"
+//#include "emscripten.h"
 #include "wasmfs.h"
 
-EM_JS(
+extern "C" {
+void _wasmfs_init_node_backend_js();
+}
 
 namespace wasmfs {
 
 // This class describes a file that lives in JS Memory
 class NodeFile : public DataFile {
   __wasi_errno_t write(const uint8_t* buf, size_t len, off_t offset) override {
-..
+abort();
   }
 
   __wasi_errno_t read(uint8_t* buf, size_t len, off_t offset) override {
-..
+abort();
   }
 
   void flush() override {}
 
-  size_t getSize() override { .. }
+  size_t getSize() override {
+abort();
+  }
 
 public:
   NodeFile(mode_t mode, backend_t backend) : DataFile(mode, backend) {
-..
+abort();
   }
 };
 
@@ -48,6 +52,7 @@ public:
 
 // This function is exposed to users to instantiate a new JSBackend.
 extern "C" backend_t wasmfs_create_node_backend(char* outside_path) {
+  _wasmfs_init_node_backend_js();
   return wasmFS.addBackend(std::make_unique<NodeBackend>(outside_path));
 }
 

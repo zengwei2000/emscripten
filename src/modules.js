@@ -38,7 +38,7 @@ global.LibraryManager = {
       'library.js',
       'library_formatString.js',
       'library_math.js',
-      'library_path.js'
+      'library_path.js',
     ];
     if (!WASMFS) {
       libraries.push('library_syscall.js');

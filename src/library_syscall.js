@@ -161,21 +161,6 @@ var SyscallsLibrary = {
       }
       return ret;
     },
-#else
-    // MEMFS filesystem disabled lite handling of stdout and stderr:
-    buffers: [null, [], []], // 1 => stdout, 2 => stderr
-    printChar: function(stream, curr) {
-      var buffer = SYSCALLS.buffers[stream];
-#if ASSERTIONS
-      assert(buffer);
-#endif
-      if (curr === 0 || curr === {{{ charCode('\n') }}}) {
-        (stream === 1 ? out : err)(UTF8ArrayToString(buffer, 0));
-        buffer.length = 0;
-      } else {
-        buffer.push(curr);
-      }
-    },
 #endif // SYSCALLS_REQUIRE_FILESYSTEM
 
     // arguments handling

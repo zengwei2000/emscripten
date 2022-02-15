@@ -180,20 +180,41 @@ var WasiLibrary = {
     return 0;
   },
 
+  $Streams: {
+    // Minimal code for stdout/stderr when the filesystem is disabled.
+    buffers: [null, [], []], // 1 => stdout, 2 => stderr
+    printChar: function(stream, curr) {
+      var buffer = Streams.buffers[stream];
+#if ASSERTIONS
+      assert(buffer);
+#endif
+      if (curr === 0 || curr === {{{ charCode('\n') }}}) {
+        (stream === 1 ? out : err)(UTF8ArrayToString(buffer, 0));
+        buffer.length = 0;
+      } else {
+        buffer.push(curr);
+      }
+    },
+  },
+
 #if SYSCALLS_REQUIRE_FILESYSTEM == 0 && (!MINIMAL_RUNTIME || EXIT_RUNTIME)
+  $flush_NO_FILESYSTEM__deps: ['$Streams'],
   $flush_NO_FILESYSTEM: function() {
     // flush anything remaining in the buffers during shutdown
 #if hasExportedFunction('___stdio_exit')
     ___stdio_exit();
 #endif
-    var buffers = SYSCALLS.buffers;
-    if (buffers[1].length) SYSCALLS.printChar(1, {{{ charCode("\n") }}});
-    if (buffers[2].length) SYSCALLS.printChar(2, {{{ charCode("\n") }}});
+    var buffers = Streams.buffers;
+    if (buffers[1].length) Streams.printChar(1, {{{ charCode("\n") }}});
+    if (buffers[2].length) Streams.printChar(2, {{{ charCode("\n") }}});
   },
   fd_write__deps: ['$flush_NO_FILESYSTEM'],
   fd_write__postset: function() {
     addAtExit('flush_NO_FILESYSTEM()');
   },
+#endif
+#if !SYSCALLS_REQUIRE_FILESYSTEM
+  fd_write__deps: ['$Streams'],
 #endif
   fd_write__sig: 'iiiii',
   fd_write: function(fd, iov, iovcnt, pnum) {
@@ -209,7 +230,7 @@ var WasiLibrary = {
       var len = {{{ makeGetValue('iov', C_STRUCTS.iovec.iov_len, 'i32') }}};
       iov += {{{ C_STRUCTS.iovec.__size__ }}};
       for (var j = 0; j < len; j++) {
-        SYSCALLS.printChar(fd, HEAPU8[ptr+j]);
+        Streams.printChar(fd, HEAPU8[ptr+j]);
       }
       num += len;
     }

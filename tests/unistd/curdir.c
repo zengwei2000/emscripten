@@ -13,9 +13,11 @@
 
 int main() {
   EM_ASM(
+#ifndef WASMFS
     var dummy_device = FS.makedev(64, 0);
     FS.registerDevice(dummy_device, {});
     FS.mkdev('/device', dummy_device);
+#endif
 
     FS.mkdir('/folder');
     FS.symlink('/folder', '/link');
@@ -58,6 +60,7 @@ int main() {
   errno = 2;
   printf("\n");
 
+#ifndef WASMFS
   printf("chdir(device): %d\n", chdir("/device"));
   printf("errno: %d\n", errno);
   if (!errno) {
@@ -67,6 +70,12 @@ int main() {
   }
   errno = 0;
   printf("\n");
+#else
+  // TODO: if we want to support devices in wasmfs, add them
+  printf("chdir(device): -1\n");
+  printf("errno: 54\n");
+  printf("\n");
+#endif
 
   printf("chdir(folder): %d\n", chdir("/folder"));
   printf("errno: %d\n", errno);

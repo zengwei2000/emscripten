@@ -1061,6 +1061,7 @@ var LINKABLE = 0;
 //   * AUTO_ARCHIVE_INDEXES is disabled.
 //   * DEFAULT_TO_CXX is disabled.
 //   * ALLOW_UNIMPLEMENTED_SYSCALLS is disabled.
+//   * INCOMING_MODULE_JS_API is set to empty by default.
 // [compile+link]
 var STRICT = 0;
 

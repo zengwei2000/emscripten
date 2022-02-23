@@ -1677,6 +1677,7 @@ def phase_linker_setup(options, state, newargs, user_settings):
     default_setting(user_settings, 'AUTO_ARCHIVE_INDEXES', 0)
     default_setting(user_settings, 'IGNORE_MISSING_MAIN', 0)
     default_setting(user_settings, 'ALLOW_UNIMPLEMENTED_SYSCALLS', 0)
+    default_setting(user_settings, 'INCOMING_MODULE_JS_API', [])
 
   if not settings.AUTO_JS_LIBRARIES:
     default_setting(user_settings, 'USE_SDL', 0)

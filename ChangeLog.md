@@ -20,6 +20,12 @@ See docs/process.md for more on how version tagging works.
 
 3.1.6
 -----
+- `-sSTRICT` now implies `-sINCOMING_MODULE_API=[]` which is generally good
+  for code size.  If you `-sSTRICT` you now need to be explicit about the
+  incoming module APIs you are supplying.  Users who supply symbols on the
+  incoming module but forget to include them in `-sINCOMING_MODULE_API`
+  will see an error in debug builds so this change will not generate any
+  silent failures.
 - Remove support for deprecated `EMMAKEN_COMPILER`, `EMMAKEN_CFLAGS`, and
   `EMMAKEN_NO_SDK`  environment variables.  These are all legacy and redundant
   in the face of other settings/flags:

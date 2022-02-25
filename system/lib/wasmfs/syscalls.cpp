@@ -19,7 +19,6 @@
 #include <utility>
 #include <vector>
 #include <wasi/api.h>
-#include <wasi/wasi-helpers.h>
 
 #include "backend.h"
 #include "file.h"
@@ -1176,7 +1175,8 @@ int __syscall_poll(struct pollfd* fds, nfds_t nfds, int timeout) {
   return nonzero;
 }
 
+
 long __syscall_fdatasync(long fd) {
-  return __wasi_syscall_ret(__wasi_fd_sync(fd));
+  return -__wasi_fd_sync(fd);
 }
 }

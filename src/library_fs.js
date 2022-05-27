@@ -1755,7 +1755,9 @@ FS.staticInit();` +
         this.lengthKnown = true;
       };
       if (typeof XMLHttpRequest != 'undefined') {
-        if (!ENVIRONMENT_IS_WORKER) throw 'Cannot do synchronous binary XHRs outside webworkers in modern browsers. Use --embed-file or --preload-file in emcc';
+#if ASSERTIONS
+        assert(ENVIRONMENT_IS_WORKER, 'Cannot do synchronous binary XHRs outside webworkers in modern browsers. Use --embed-file or --preload-file in emcc');
+#endif
         var lazyArray = new LazyUint8Array();
         Object.defineProperties(lazyArray, {
           length: {

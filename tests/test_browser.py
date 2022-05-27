@@ -1630,33 +1630,33 @@ keydown(100);keyup(100); // trigger the end
 
   @no_firefox('keeps sending OPTIONS requests, and eventually errors')
   def test_chunked_synchronous_xhr(self):
-    main = 'chunked_sync_xhr.html'
-    worker_filename = "download_and_checksum_worker.js"
-
-    create_file(main, r"""
+    create_file('index.html', r'''
       <!doctype html>
       <html>
       <head><meta charset="utf-8"><title>Chunked XHR</title></head>
       <body>
         Chunked XHR Web Worker Test
         <script>
-          var worker = new Worker(""" + json.dumps(worker_filename) + r""");
+          var worker = new Worker('download_and_checksum_worker.js');
           var buffer = [];
           worker.onmessage = function(event) {
-            if (event.data.channel === "stdout") {
+            if (event.data.channel === 'stdout') {
               var xhr = new XMLHttpRequest();
               xhr.open('GET', 'http://localhost:%s/report_result?' + event.data.line);
               xhr.send();
               setTimeout(function() { window.close() }, 1000);
             } else {
-              if (event.data.trace) event.data.trace.split("\n").map(function(v) { console.error(v); });
+              if (event.data.trace) {
+                event.data.trace.split('\n').map((v) => console.error(v));
+              }
               if (event.data.line) {
                 console.error(event.data.line);
               } else {
                 var v = event.data.char;
                 if (v == 10) {
                   var line = buffer.splice(0);
-                  console.error(line = line.map(function(charCode){return String.fromCharCode(charCode);}).join(''));
+                  line = line.map((charCode) => String.fromCharCode(charCode)).join('')
+                  console.error(line);
                 } else {
                   buffer.push(v);
                 }
@@ -1666,25 +1666,30 @@ keydown(100);keyup(100); // trigger the end
         </script>
       </body>
       </html>
-    """ % self.port)
+    ''' % self.port)
 
-    create_file('worker_prejs.js', r"""
+    create_file('worker_prejs.js', r'''
       if (typeof(Module) === "undefined") Module = {};
       Module["arguments"] = ["/bigfile"];
       Module["preInit"] = function() {
           FS.createLazyFile('/', "bigfile", "http://localhost:11111/bogus_file_path", true, false);
       };
       var doTrace = true;
-      Module["print"] = function(s) { self.postMessage({channel: "stdout", line: s}); };
-      Module["printErr"] = function(s) { self.postMessage({channel: "stderr", char: s, trace: ((doTrace && s === 10) ? new Error().stack : null)}); doTrace = false; };
-    """)
-    # vs. os.path.join(self.get_dir(), filename)
-    # vs. test_file('hello_world_gles.c')
-    self.compile_btest([test_file('checksummer.c'), '-g', '-sSMALL_XHR_CHUNKS', '-o', worker_filename,
+      Module["print"] = function(s) {
+        self.postMessage({channel: "stdout", line: s});
+      };
+      Module["printErr"] = function(s) {
+        var trace = (doTrace && s === 10) ? new Error().stack : null;
+        self.postMessage({channel: "stderr", char: s, trace: trace});
+        doTrace = false;
+      };
+    ''')
+    self.compile_btest([test_file('checksummer.c'), '-g', '-sSMALL_XHR_CHUNKS',
+                        '-o', 'download_and_checksum_worker.js',
                         '--pre-js', 'worker_prejs.js'])
     chunkSize = 1024
     data = os.urandom(10 * chunkSize + 1) # 10 full chunks and one 1 byte chunk
-    checksum = zlib.adler32(data) & 0xffffffff # Python 2 compatibility: force bigint
+    checksum = zlib.adler32(data)
 
     server = multiprocessing.Process(target=test_chunked_synchronous_xhr_server, args=(True, chunkSize, data, checksum, self.port))
     server.start()
@@ -1701,11 +1706,12 @@ keydown(100);keyup(100); // trigger the end
           raise e
 
     try:
-      self.run_browser(main, 'Chunked binary synchronous XHR in Web Workers!', '/report_result?' + str(checksum))
+      self.run_browser('index.html', 'Chunked binary synchronous XHR in Web Workers!', '/report_result?' + str(checksum))
     finally:
       server.terminate()
-    # Avoid race condition on cleanup, wait a bit so that processes have released file locks so that test tearDown won't
-    # attempt to rmdir() files in use.
+    # Avoid race condition on cleanup, wait a bit so that processes have
+    # released file locks so that test tearDown won't attempt to rmdir()
+    # files in use.
     if WINDOWS:
       time.sleep(2)
 

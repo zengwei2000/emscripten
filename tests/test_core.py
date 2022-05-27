@@ -6466,6 +6466,17 @@ void* operator new(size_t size) {
       create_file('data.dat', s)
       self.do_runf(test_file('mmap_file.c'), '*\n' + s[0:20] + '\n' + s[4096:4096 + 20] + '\n*\n')
 
+  def test_mmap_lazyfile(self):
+    create_file('local_file.txt', 'hello world')
+    create_file('pre.js', '''
+Module['preRun'] = function() {
+    FS.createLazyFile('/', 'lazy.txt', 'local_file.txt', true, false);
+};
+''')
+    self.set_setting('FORCE_FILESYSTEM')
+    self.emcc_args += ['--pre-js=pre.js']
+    self.do_core_test('test_mmap_lazyfile.c')
+
   @no_lsan('Test code contains memory leaks')
   def test_cubescript(self):
     # uses register keyword

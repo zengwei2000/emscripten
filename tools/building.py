@@ -1527,7 +1527,7 @@ def run_binaryen_command(tool, infile, outfile=None, args=[], debug=False, stdou
 
 
 def run_wasm_opt(infile, outfile=None, args=[], **kwargs):
-  if outfile and (settings.DEBUG_LEVEL < 3 or settings.GENERATE_SOURCE_MAP):
+  if outfile and (settings.DEBUG_LEVEL < 3):
     # remove any dwarf debug info sections, if the debug level is <3, as
     # we don't need them; also remove them if we use source maps (which are
     # implemented separately from dwarf).

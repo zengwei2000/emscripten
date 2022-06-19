@@ -61,6 +61,8 @@ def cache(f):
   def helper(*args, **kwargs):
     assert not kwargs
     key = args
+    print(key)
+    #sysl = lkjs 
     if key not in results:
       results[key] = f(*args, **kwargs)
     return results[key]

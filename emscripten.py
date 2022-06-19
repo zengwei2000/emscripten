@@ -304,10 +304,12 @@ def emscript(in_wasm, out_wasm, outfile_js, memfile):
 
   if not settings.WASM_BIGINT and metadata['emJsFuncs']:
     module = webassembly.Module(in_wasm)
+    module2 = webassembly.Module(in_wasm)
     types = module.get_types()
     import_map = {}
     for imp in module.get_imports():
       import_map[imp.field] = imp
+    module2.get_imports()
     for em_js_func, raw in metadata.get('emJsFuncs', {}).items():
       c_sig = raw.split('<::>')[0].strip('()')
       if not c_sig or c_sig == 'void':

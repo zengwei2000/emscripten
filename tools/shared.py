@@ -405,29 +405,29 @@ def check_sanity(force=False):
   expected = generate_sanity()
 
   sanity_file = Cache.get_path('sanity.txt')
-  with Cache.lock():
-    if os.path.exists(sanity_file):
-      sanity_data = utils.read_file(sanity_file)
-      if sanity_data != expected:
-        logger.debug('old sanity: %s' % sanity_data)
-        logger.debug('new sanity: %s' % expected)
-        logger.info('(Emscripten: config changed, clearing cache)')
-        Cache.erase()
-        # the check actually failed, so definitely write out the sanity file, to
-        # avoid others later seeing failures too
-        force = False
-      else:
-        if force:
-          logger.debug(f'sanity file up-to-date but check forced: {sanity_file}')
-        else:
-          logger.debug(f'sanity file up-to-date: {sanity_file}')
-          return # all is well
+  if os.path.exists(sanity_file):
+    sanity_data = utils.read_file(sanity_file)
+    if sanity_data != expected:
+      logger.debug('old sanity: %s' % sanity_data)
+      logger.debug('new sanity: %s' % expected)
+      logger.info('(Emscripten: config changed, clearing cache)')
+      Cache.erase()
+      # the check actually failed, so definitely write out the sanity file, to
+      # avoid others later seeing failures too
+      force = False
     else:
-      logger.debug(f'sanity file not found: {sanity_file}')
+      if force:
+        logger.debug(f'sanity file up-to-date but check forced: {sanity_file}')
+      else:
+        logger.debug(f'sanity file up-to-date: {sanity_file}')
+        return # all is well
+  else:
+    logger.debug(f'sanity file not found: {sanity_file}')
 
-    perform_sanity_checks()
+  perform_sanity_checks()
 
-    if not force:
+  if not force:
+    with Cache.lock('sanity'):
       # Only create/update this file if the sanity check succeeded, i.e., we got here
       utils.write_file(sanity_file, expected)
 

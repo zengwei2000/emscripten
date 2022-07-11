@@ -37,7 +37,7 @@ class Cache:
     self.filelock_name = Path(dirname, 'cache.lock')
     self.filelock = filelock.FileLock(self.filelock_name)
 
-  def acquire_cache_lock(self):
+  def acquire_cache_lock(self, reason):
     if config.FROZEN_CACHE:
       # Raise an exception here rather than exit_with_error since in practice this
       # should never happen
@@ -50,7 +50,7 @@ class Cache:
       except filelock.Timeout:
         # The multiprocess cache locking can be disabled altogether by setting EM_EXCLUSIVE_CACHE_ACCESS=1 environment
         # variable before building. (in that case, use "embuilder.py build ALL" to prepopulate the cache)
-        logger.warning(f'Accessing the Emscripten cache at "{self.dirname}" is taking a long time, another process should be writing to it. If there are none and you suspect this process has deadlocked, try deleting the lock file "{self.filelock_name}" and try again. If this occurs deterministically, consider filing a bug.')
+        logger.warning(f'Accessing the Emscripten cache at "{self.dirname}" (for "{reason}") is taking a long time, another process should be writing to it. If there are none and you suspect this process has deadlocked, try deleting the lock file "{self.filelock_name}" and try again. If this occurs deterministically, consider filing a bug.')
         self.filelock.acquire()
 
       self.prev_EM_EXCLUSIVE_CACHE_ACCESS = os.environ.get('EM_EXCLUSIVE_CACHE_ACCESS')
@@ -70,9 +70,9 @@ class Cache:
       logger.debug(f'PID {os.getpid()} released multiprocess file lock to Emscripten cache at {self.dirname}')
 
   @contextlib.contextmanager
-  def lock(self):
+  def lock(self, reason):
     """A context manager that performs actions in the given directory."""
-    self.acquire_cache_lock()
+    self.acquire_cache_lock(reason)
     try:
       yield
     finally:
@@ -82,7 +82,7 @@ class Cache:
     utils.safe_ensure_dirs(self.dirname)
 
   def erase(self):
-    with self.lock():
+    with self.lock('erase'):
       if self.dirname.exists():
         for f in os.listdir(self.dirname):
           tempfiles.try_delete(Path(self.dirname, f))
@@ -129,7 +129,7 @@ class Cache:
     self.erase_file(self.get_lib_name(name))
 
   def erase_file(self, shortname):
-    with self.lock():
+    with self.lock('erase: ' + shortname):
       name = Path(self.dirname, shortname)
       if name.exists():
         logger.info(f'deleting cached file: {name}')
@@ -153,7 +153,7 @@ class Cache:
       # should never happen
       raise Exception(f'FROZEN_CACHE is set, but cache file is missing: "{shortname}" (in cache root path "{self.dirname}")')
 
-    with self.lock():
+    with self.lock(shortname):
       if cachename.exists() and not force:
         return str(cachename)
       if what is None:

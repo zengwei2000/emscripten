@@ -622,11 +622,11 @@ var LibraryPThread = {
     err("createThread: " + ptrToString(pthread_ptr));
 #endif
 
+#if OFFSCREENCANVAS_SUPPORT
     // List of JS objects that will transfer ownership to the Worker hosting the thread
     var transferList = [];
     var error = 0;
 
-#if OFFSCREENCANVAS_SUPPORT
     // Deduce which WebGL canvases (HTMLCanvasElements or OffscreenCanvases) should be passed over to the
     // Worker that hosts the spawned pthread.
     // Comma-delimited list of CSS selectors that must identify canvases by IDs: "#canvas1, #canvas2, ..."
@@ -726,15 +726,19 @@ var LibraryPThread = {
     // Synchronously proxy the thread creation to main thread if possible. If we
     // need to transfer ownership of objects, then proxy asynchronously via
     // postMessage.
-    if (ENVIRONMENT_IS_PTHREAD && (transferList.length === 0 || error)) {
+    if (ENVIRONMENT_IS_PTHREAD
+#if OFFSCREENCANVAS_SUPPORT
+      && (transferList.length === 0 || error)
+#endif
+    ) {
       return pthreadCreateProxied(pthread_ptr, attr, start_routine, arg);
     }
 
+#if OFFSCREENCANVAS_SUPPORT
     // If on the main thread, and accessing Canvas/OffscreenCanvas failed, abort
     // with the detected error.
     if (error) return error;
 
-#if OFFSCREENCANVAS_SUPPORT
     // Register for each of the transferred canvases that the new thread now
     // owns the OffscreenCanvas.
     for (var i in offscreenCanvases) {
@@ -750,8 +754,8 @@ var LibraryPThread = {
 #if OFFSCREENCANVAS_SUPPORT
       moduleCanvasId: moduleCanvasId,
       offscreenCanvases: offscreenCanvases,
-#endif
       transferList: transferList
+#endif
     };
 
     if (ENVIRONMENT_IS_PTHREAD) {
@@ -759,7 +763,11 @@ var LibraryPThread = {
       // in the main JS thread. Therefore if a pthread is attempting to spawn a
       // new thread, the thread creation must be deferred to the main JS thread.
       threadParams.cmd = 'spawnThread';
+#if OFFSCREENCANVAS_SUPPORT
       postMessage(threadParams, transferList);
+#else
+      postMessage(threadParams);
+#endif
       // When we defer thread creation this way, we have no way to detect thread
       // creation synchronously today, so we have to assume success and return 0.
       return 0;

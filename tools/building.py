@@ -1251,7 +1251,7 @@ def emit_debug_on_side(wasm_file):
   # TODO(dschuff): Also strip the DATA section? To make this work we'd need to
   # either allow "invalid" data segment name entries, or maybe convert the DATA
   # to a DATACOUNT section.
-  strip(wasm_file_with_dwarf, wasm_file_with_dwarf, sections=['CODE'])
+  #strip(wasm_file_with_dwarf, wasm_file_with_dwarf, sections=['CODE'])
 
   # embed a section in the main wasm to point to the file with external DWARF,
   # see https://yurydelendik.github.io/webassembly-dwarf/#external-DWARF

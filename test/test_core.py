@@ -5525,6 +5525,7 @@ Module = {
   def test_getcwd_with_non_ascii_name(self):
     self.do_run_in_out_file_test('fs/test_getcwd_with_non_ascii_name.cpp')
 
+  @no_wasmfs('should wasmfs support /proc/self/fd/ ?')
   def test_proc_self_fd(self):
     self.do_run_in_out_file_test('fs/test_proc_self_fd.c')
 
@@ -5686,6 +5687,8 @@ main( int argv, char ** argc ) {
     self.do_run_in_out_file_test('fcntl/test_fcntl_misc.c')
 
   def test_poll(self):
+    if self.get_setting('WASMFS'):
+      self.emcc_args += ['-sFORCE_FILESYSTEM']
     self.add_pre_run('''
       var dummy_device = FS.makedev(64, 0);
       FS.registerDevice(dummy_device, {});
@@ -5694,6 +5697,7 @@ main( int argv, char ** argc ) {
       FS.mkdev('/device', dummy_device);
     ''')
     self.do_core_test('test_poll.c')
+    # wat
 
   def test_statvfs(self):
     self.do_core_test('test_statvfs.c')
@@ -9565,7 +9569,7 @@ wasm2jsz = make_run('wasm2jsz', emcc_args=['-Oz'], settings={'WASM': 0})
 
 simd2 = make_run('simd2', emcc_args=['-O2', '-msimd128'])
 bulkmem2 = make_run('bulkmem2', emcc_args=['-O2', '-mbulk-memory'])
-wasmfs = make_run('wasmfs', emcc_args=['-O2', '-DWASMFS'], settings={'WASMFS': 1})
+wasmfs = make_run('wasmfs', emcc_args=['-O2', '-DWASMFS', '--profiling'], settings={'WASMFS': 1})
 
 # SAFE_HEAP/STACK_OVERFLOW_CHECK
 core0s = make_run('core2s', emcc_args=['-g'], settings={'SAFE_HEAP': 1})

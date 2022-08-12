@@ -98,6 +98,10 @@ int _wasmfs_mkdir(char* path, int mode) {
   return __syscall_mkdirat(AT_FDCWD, (intptr_t)path, mode);
 }
 
+int _wasmfs_mknod(char* path, int mode, int dev) {
+  return __syscall_mknodat(AT_FDCWD, (intptr_t)path, mode, dev);
+}
+
 int _wasmfs_chdir(char* path) { return __syscall_chdir((intptr_t)path); }
 
 int _wasmfs_symlink(char* old_path, char* new_path) {

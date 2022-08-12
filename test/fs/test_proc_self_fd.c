@@ -7,7 +7,7 @@
 int main(int argc, char* argv[]) {
   DIR *d = opendir("/proc/self/fd");
   if (!d) {
-    printf("error opening proc/self");
+    printf("error opening proc/self\n");
     return 1;
   }
 

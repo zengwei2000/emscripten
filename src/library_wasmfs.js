@@ -196,12 +196,27 @@ mergeInto(LibraryManager.library, {
         __wasmfs_readdir_finish(state);
         return entries;
       });
-    }
+    },
+    mknod: (path, mode, dev) => {
+      console.log("waka mknod", path, mode, dev);
+      return withStackSave(() => {
+        var buffer = allocateUTF8OnStack(path);
+        return __wasmfs_mknod(buffer, mode, dev);
+      });
+    },
+    makedev: (ma, mi) => ((ma) << 8 | (mi)),
+    mkdev: (path, mode, dev) => {
+      if (typeof dev == 'undefined') {
+        dev = mode;
+        mode = 438 /* 0666 */;
+      }
+      mode |= {{{ cDefine('S_IFCHR') }}};
+      return FS.mknod(path, mode, dev);
+    },
     // TODO: mount
     // TODO: unmount
     // TODO: lookup
     // TODO: mknod
-    // TODO: mkdev
     // TODO: rename
     // TODO: syncfs
     // TODO: llseek

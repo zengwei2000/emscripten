@@ -544,6 +544,7 @@ jobs:
     executor: mac
     environment:
       EMTEST_SKIP_V8: "1"
+      EMTEST_SKIP_SLOW: "1"
     steps:
       - run:
           name: Install brew package dependencies

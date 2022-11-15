@@ -9069,7 +9069,6 @@ T6:(else) !ASSERTIONS""", output)
 const test_module = require("./module");
 test_module().then((test_module_instance) => {
   test_module_instance._main();
-  process.exit(0);
 });
 '''
     ensure_dir('subdir')

@@ -493,8 +493,11 @@ var LibraryPThread = {
   },
 
   emscripten_thread_set_strongref: function(thread, strongRef) {
+#if ENVIRONMENT_MAY_BE_NODE
+    if (!ENVIRONMENT_IS_NODE) return;
     var worker = PThread.pthreads[thread];
     strongRef ? worker.ref() : worker.unref();
+#endif
   },
 
   $cleanupThread: function(pthread_ptr) {

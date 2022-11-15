@@ -205,12 +205,6 @@ var LibraryPThread = {
       // worker pool as an unused worker.
       worker.pthread_ptr = 0;
 
-#if ENVIRONMENT_MAY_BE_NODE
-      if (ENVIRONMENT_IS_NODE) {
-        worker.unref();
-      }
-#endif
-
       // Finally, free the underlying (and now-unused) pthread structure in
       // linear memory.
       __emscripten_thread_free_data(pthread_ptr);
@@ -496,6 +490,11 @@ var LibraryPThread = {
     // otherwise pthread_join is responsible for calling this.
     if (!ENVIRONMENT_IS_PTHREAD) cleanupThread(thread);
     else postMessage({ 'cmd': 'cleanupThread', 'thread': thread });
+  },
+
+  emscripten_thread_set_strongref: function(thread, strongRef) {
+    var worker = PThread.pthreads[thread];
+    strongRef ? worker.ref() : worker.unref();
   },
 
   $cleanupThread: function(pthread_ptr) {

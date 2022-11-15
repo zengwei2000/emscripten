@@ -10,6 +10,7 @@
 #include <inttypes.h>
 #include <pthread.h>
 #include <stdarg.h>
+#include <stdbool.h>
 
 #include <emscripten/html5.h>  // for EMSCRIPTEN_RESULT
 #include <emscripten/atomic.h>
@@ -269,6 +270,15 @@ void emscripten_thread_sleep(double msecs);
 // When thread profiler is not enabled (not building with --threadprofiler),
 // this is a no-op.
 void emscripten_set_thread_name(pthread_t threadId, const char *name);
+
+// Marks or unmarks the given thread as strongly referenced. This is used to
+// prevent Node.js application from exiting as long as there are strongly
+// referenced threads still running. Normally you don't need to call this
+// function, and the pthread behaviour will match native in that background
+// threads won't keep runtime alive, but waiting for them via e.g. pthread_join
+// will. However, this is useful for features like PROXY_TO_PTHREAD where we
+// want to keep running as long as the detached pthread is.
+void emscripten_thread_set_strongref(pthread_t thread, bool set);
 
 // Gets the stored pointer to a string representing the canvases to transfer to
 // the created thread.

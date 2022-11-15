@@ -49,5 +49,8 @@ EMSCRIPTEN_KEEPALIVE int _emscripten_proxy_main(int argc, char** argv) {
   pthread_t thread;
   int rc = pthread_create(&thread, &attr, _main_thread, NULL);
   pthread_attr_destroy(&attr);
+  if (rc == 0) {
+    emscripten_thread_set_strongref(thread, 1);
+  }
   return rc;
 }

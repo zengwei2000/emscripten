@@ -8,7 +8,6 @@ import sys
 import unittest
 import tempfile
 import time
-import queue
 
 import common
 
@@ -16,17 +15,18 @@ import common
 NUM_CORES = None
 
 
-def g_testing_thread(work_queue, result_queue, temp_dir):
-  for test in iter(lambda: get_from_queue(work_queue), None):
-    result = BufferedParallelTestResult()
-    test.set_temp_dir(temp_dir)
-    try:
-      test(result)
-    except unittest.SkipTest as e:
-      result.addSkip(test, e)
-    except Exception as e:
-      result.addError(test, e)
-    result_queue.put(result)
+def run_test(test):
+  result = BufferedParallelTestResult()
+  temp_dir = tempfile.mkdtemp()
+  test.set_temp_dir(temp_dir)
+  try:
+    test(result)
+  except unittest.SkipTest as e:
+    result.addSkip(test, e)
+  except Exception as e:
+    result.addError(test, e)
+  common.force_delete_dir(temp_dir)
+  return result
 
 
 class ParallelTestSuite(unittest.BaseTestSuite):
@@ -37,8 +37,6 @@ class ParallelTestSuite(unittest.BaseTestSuite):
 
   def __init__(self, max_cores):
     super().__init__()
-    self.processes = None
-    self.result_queue = None
     self.max_cores = max_cores
 
   def run(self, result):
@@ -48,16 +46,14 @@ class ParallelTestSuite(unittest.BaseTestSuite):
     # inherited by the child process, but can lead to hard-to-debug windows-only
     # issues.
     # multiprocessing.set_start_method('spawn')
-    test_queue = self.create_test_queue()
-    self.init_processes(test_queue)
-    results = self.collect_results()
+    use_cores = min(self.max_cores, num_cores())
+    print('Using %s parallel test processes' % use_cores)
+    pool = multiprocessing.Pool(use_cores)
+    results = [pool.apply_async(run_test, (test,)) for test in self.reversed_tests()]
+    results = [r.get() for r in results]
+    pool.close()
+    pool.join()
     return self.combine_results(result, results)
-
-  def create_test_queue(self):
-    test_queue = multiprocessing.Queue()
-    for test in self.reversed_tests():
-      test_queue.put(test)
-    return test_queue
 
   def reversed_tests(self):
     """A list of this suite's tests in reverse order.
@@ -69,38 +65,8 @@ class ParallelTestSuite(unittest.BaseTestSuite):
 
     Future work: measure slowness of tests and sort accordingly.
     """
-    tests = []
-    for test in self:
-      tests.append(test)
-    tests.sort(key=str)
-    return tests[::-1]
-
-  def init_processes(self, test_queue):
-    use_cores = min(self.max_cores, num_cores())
-    print('Using %s parallel test processes' % use_cores)
-    self.processes = []
-    self.result_queue = multiprocessing.Queue()
-    self.dedicated_temp_dirs = [tempfile.mkdtemp() for x in range(use_cores)]
-    for temp_dir in self.dedicated_temp_dirs:
-      p = multiprocessing.Process(target=g_testing_thread,
-                                  args=(test_queue, self.result_queue, temp_dir))
-      p.start()
-      self.processes.append(p)
-
-  def collect_results(self):
-    buffered_results = []
-    while len(self.processes):
-      res = get_from_queue(self.result_queue)
-      if res is not None:
-        buffered_results.append(res)
-      else:
-        self.clear_finished_processes()
-    for temp_dir in self.dedicated_temp_dirs:
-      common.force_delete_dir(temp_dir)
-    return buffered_results
-
-  def clear_finished_processes(self):
-    self.processes = [p for p in self.processes if p.is_alive()]
+    tests = [t for t in self]
+    return reversed(sorted(tests, key=str))
 
   def combine_results(self, result, buffered_results):
     print()
@@ -249,11 +215,3 @@ def num_cores():
   if NUM_CORES:
     return int(NUM_CORES)
   return multiprocessing.cpu_count()
-
-
-def get_from_queue(q):
-  try:
-    return q.get(True, 0.1)
-  except queue.Empty:
-    pass
-  return None

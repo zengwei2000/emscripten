@@ -79,7 +79,7 @@ load('runtime.js');
 // Main
 // ===============================
 
-B = new Benchmarker();
+global.B = new Benchmarker();
 
 try {
   runJSify();

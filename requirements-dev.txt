@@ -22,3 +22,9 @@ docutils==0.17.1
 
 # Needed by test/test_sockets.py
 websockify==0.10.0
+
+# Needed for sending tracebacks in parallel test runner
+tblib==1.7.0
+
+# CI test integration
+unittest-xml-reporting==3.2.0

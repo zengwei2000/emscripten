@@ -162,6 +162,11 @@ commands:
       - npm-install
       - pip-install
       - run: apt-get install ninja-build
+  collect-test-results:
+    description: "Collect test results"
+    steps:
+      - store_test_results:
+          path: test-reports
   run-tests:
     description: "Runs emscripten tests"
     parameters:
@@ -198,6 +203,7 @@ commands:
             - freeze-cache
       - run-tests:
           test_targets: << parameters.test_targets >>
+      - collect-test-results
   test-firefox:
     description: "Runs emscripten tests under firefox"
     steps:
@@ -250,6 +256,7 @@ commands:
             # posix and emrun suites are disabled because firefox errors on
             #  "Firefox is already running, but is not responding."
             # TODO: find out a way to shut down and restart firefox
+      - collect-test-results
   test-chrome:
     description: "Runs emscripten browser tests under chrome"
     steps:
@@ -275,6 +282,7 @@ commands:
             # skip test_zzz_zzz_4gb_fail as it OOMs on the current bot
             test/runner browser posixtest_browser.test_pthread_create_1_1 skip:browser.test_zzz_zzz_4gb_fail
             test/runner emrun
+      - collect-test-results
   test-sockets-chrome:
     description: "Runs emscripten sockets tests under chrome"
     steps:
@@ -294,6 +302,7 @@ commands:
           command: |
             export EMTEST_BROWSER="/usr/bin/google-chrome $CHROME_FLAGS_BASE $CHROME_FLAGS_HEADLESS $CHROME_FLAGS_WASM $CHROME_FLAGS_NOCACHE"
             test/runner sockets
+      - collect-test-results
 
 jobs:
   build-docs:

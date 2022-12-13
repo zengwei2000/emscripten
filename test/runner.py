@@ -29,6 +29,10 @@ import random
 import sys
 import unittest
 
+CI = os.environ.get('CI')
+if CI:
+  import xmlrunner
+
 # Setup
 
 __rootpath__ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -294,7 +298,10 @@ def run_tests(options, suites):
   print('Test suites:')
   print([s[0] for s in suites])
   # Run the discovered tests
-  testRunner = unittest.TextTestRunner(verbosity=2, failfast=options.failfast)
+  if not os.environ.get('CI'):
+    testRunner = unittest.TextTestRunner(verbosity=2, failfast=options.failfast)
+  else:
+    testRunner = xmlrunner.XMLTestRunner(output='test-reports', verbosity=2)
   for mod_name, suite in suites:
     print('Running %s: (%s tests)' % (mod_name, suite.countTestCases()))
     res = testRunner.run(suite)

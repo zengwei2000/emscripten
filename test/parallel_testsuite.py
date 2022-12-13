@@ -9,6 +9,7 @@ import sys
 import tempfile
 import time
 import unittest
+from tblib import Traceback as FakeTraceback
 
 import common
 
@@ -147,6 +148,10 @@ class BufferedTestBase():
       exctype, value, tb = err
       self.error = exctype, value, FakeTraceback(tb)
 
+  def unwrapError(self):
+    exctype, value, tb = self.error
+    return exctype, value, tb.as_traceback()
+
   def updateResult(self, result):
     assert False, 'Base class should not be used directly'
 
@@ -167,53 +172,22 @@ class BufferedTestSkip(BufferedTestBase):
 
 class BufferedTestFailure(BufferedTestBase):
   def updateResult(self, result):
-    result.addFailure(self.test, self.error)
+    result.addFailure(self.test, self.unwrapError())
 
 
 class BufferedTestExpectedFailure(BufferedTestBase):
   def updateResult(self, result):
-    result.addExpectedFailure(self.test, self.error)
+    result.addExpectedFailure(self.test, self.unwrapError())
 
 
 class BufferedTestError(BufferedTestBase):
   def updateResult(self, result):
-    result.addError(self.test, self.error)
+    result.addError(self.test, self.unwrapError())
 
 
 class BufferedTestUnexpectedSuccess(BufferedTestBase):
   def updateResult(self, result):
     result.addUnexpectedSuccess(self.test)
-
-
-class FakeTraceback():
-  """A fake version of a traceback object that is picklable across processes.
-
-  Python's traceback objects contain hidden stack information that isn't able
-  to be pickled. Further, traceback objects aren't constructable from Python,
-  so we need a dummy object that fulfills its interface.
-
-  The fields we expose are exactly those which are used by
-  unittest.TextTestResult to show a text representation of a traceback. Any
-  other use is not intended.
-  """
-
-  def __init__(self, tb):
-    self.tb_frame = FakeFrame(tb.tb_frame)
-    self.tb_lineno = tb.tb_lineno
-    self.tb_next = FakeTraceback(tb.tb_next) if tb.tb_next is not None else None
-
-
-class FakeFrame():
-  def __init__(self, f):
-    self.f_code = FakeCode(f.f_code)
-    # f.f_globals is not picklable, not used in stack traces, and needs to be iterable
-    self.f_globals = []
-
-
-class FakeCode():
-  def __init__(self, co):
-    self.co_filename = co.co_filename
-    self.co_name = co.co_name
 
 
 def num_cores():

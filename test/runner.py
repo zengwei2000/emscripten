@@ -301,7 +301,7 @@ def run_tests(options, suites):
   if not os.environ.get('CI'):
     testRunner = unittest.TextTestRunner(verbosity=2, failfast=options.failfast)
   else:
-    testRunner = xmlrunner.XMLTestRunner(output='test-reports', verbosity=2)
+    testRunner = xmlrunner.XMLTestRunner(output='test-reports/reports', verbosity=2)
   for mod_name, suite in suites:
     print('Running %s: (%s tests)' % (mod_name, suite.countTestCases()))
     res = testRunner.run(suite)

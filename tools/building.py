@@ -136,7 +136,7 @@ def llvm_backend_args():
 
   # better (smaller, sometimes faster) codegen, see binaryen#1054
   # and https://bugs.llvm.org/show_bug.cgi?id=39488
-  args += ['-disable-lsr']
+  #args += ['-disable-lsr']
 
   return args
 

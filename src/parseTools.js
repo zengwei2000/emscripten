@@ -8,8 +8,23 @@
  * Tests live in test/other/test_parseTools.js.
  */
 
-global.FOUR_GB = 4 * 1024 * 1024 * 1024;
+globalThis.FOUR_GB = 4 * 1024 * 1024 * 1024;
+globalThis.POINTER_SIZE = MEMORY64 ? 8 : 4;
+
+const STACK_ALIGN = 16;
 const FLOAT_TYPES = new Set(['float', 'double']);
+const POINTER_BITS = POINTER_SIZE * 8;
+const POINTER_TYPE = 'u' + POINTER_BITS;
+const POINTER_JS_TYPE = MEMORY64 ? "'bigint'" : "'number'";
+const POINTER_SHIFT = MEMORY64 ? '3' : '2';
+const POINTER_HEAP = MEMORY64 ? 'HEAP64' : 'HEAP32';
+const SIZE_TYPE = POINTER_TYPE;
+
+// Similar to POINTER_TYPE, but this is the actual wasm type that is
+// used in practice, while POINTER_TYPE is the more refined internal
+// type (that is unsigned, where as core wasm does not have unsigned
+// types).
+const POINTER_WASM_TYPE = 'i' + POINTER_BITS;
 
 let currentlyParsedFilename = '';
 
@@ -170,22 +185,6 @@ function needsQuoting(ident) {
   if (ident[0] === '(' && ident[ident.length - 1] === ')' && ident.indexOf('(', 1) < 0) return false; // already fully quoted
   return true;
 }
-
-const POINTER_SIZE = MEMORY64 ? 8 : 4;
-const POINTER_BITS = POINTER_SIZE * 8;
-const POINTER_TYPE = 'u' + POINTER_BITS;
-const POINTER_JS_TYPE = MEMORY64 ? "'bigint'" : "'number'";
-const POINTER_SHIFT = MEMORY64 ? '3' : '2';
-const POINTER_HEAP = MEMORY64 ? 'HEAP64' : 'HEAP32';
-
-const SIZE_TYPE = POINTER_TYPE;
-
-
-// Similar to POINTER_TYPE, but this is the actual wasm type that is
-// used in practice, while POINTER_TYPE is the more refined internal
-// type (that is unsigned, where as core wasm does not have unsigned
-// types).
-const POINTER_WASM_TYPE = 'i' + POINTER_BITS;
 
 function isPointerType(type) {
   return type[type.length - 1] == '*';
@@ -994,4 +993,30 @@ function preJS() {
     result += preprocess(fileName);
   }
   return result;
+}
+
+function getNativeTypeSize(type) {
+  switch (type) {
+    case 'i1': case 'i8': case 'u8': return 1;
+    case 'i16': case 'u16': return 2;
+    case 'i32': case 'u32': return 4;
+    case 'i64': case 'u64': return 8;
+    case 'float': return 4;
+    case 'double': return 8;
+    default: {
+      if (type[type.length - 1] === '*') {
+        return POINTER_SIZE;
+      }
+      if (type[0] === 'i') {
+        const bits = Number(type.substr(1));
+        assert(bits % 8 === 0, 'getNativeTypeSize invalid bits ' + bits + ', type ' + type);
+        return bits / 8;
+      }
+      return 0;
+    }
+  }
+}
+
+function getNativeFieldSize(type) {
+  return Math.max(getNativeTypeSize(type), POINTER_SIZE);
 }

@@ -3116,7 +3116,7 @@ def phase_post_link(options, state, in_wasm, wasm_target, target):
   if settings.MEM_INIT_IN_WASM:
     memfile = None
   else:
-    memfile = shared.replace_or_append_suffix(target, '.mem')
+    memfile = shared.replace_suffix(target, '.mem')
 
   phase_emscript(options, in_wasm, wasm_target, memfile)
 
@@ -3757,7 +3757,7 @@ def phase_binaryen(target, options, wasm_target):
 
   symbols_file = None
   if options.emit_symbol_map:
-    symbols_file = shared.replace_or_append_suffix(target, '.symbols')
+    symbols_file = shared.replace_suffix(target, '.symbols')
 
   if settings.WASM2JS:
     symbols_file_js = None
@@ -3766,11 +3766,11 @@ def phase_binaryen(target, options, wasm_target):
       write_file(wasm2js_template, preprocess_wasm2js_script())
       # generate secondary file for JS symbols
       if options.emit_symbol_map:
-        symbols_file_js = shared.replace_or_append_suffix(wasm2js_template, '.symbols')
+        symbols_file_js = shared.replace_suffix(wasm2js_template, '.symbols')
     else:
       wasm2js_template = final_js
       if options.emit_symbol_map:
-        symbols_file_js = shared.replace_or_append_suffix(target, '.symbols')
+        symbols_file_js = shared.replace_suffix(target, '.symbols')
 
     wasm2js = building.wasm2js(wasm2js_template,
                                wasm_target,

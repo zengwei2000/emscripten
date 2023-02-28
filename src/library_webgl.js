@@ -101,7 +101,7 @@ var LibraryGL = {
 
   emscripten_webgl_enable_ANGLE_instanced_arrays__deps: ['$webgl_enable_ANGLE_instanced_arrays'],
   emscripten_webgl_enable_ANGLE_instanced_arrays: function(ctx) {
-    return webgl_enable_ANGLE_instanced_arrays(GL.contexts[ctx].GLctx);
+    return webgl_enable_ANGLE_instanced_arrays(GL.contexts.get(ctx).GLctx);
   },
 
   $webgl_enable_OES_vertex_array_object: function(ctx) {
@@ -118,7 +118,7 @@ var LibraryGL = {
 
   emscripten_webgl_enable_OES_vertex_array_object__deps: ['$webgl_enable_OES_vertex_array_object'],
   emscripten_webgl_enable_OES_vertex_array_object: function(ctx) {
-    return webgl_enable_OES_vertex_array_object(GL.contexts[ctx].GLctx);
+    return webgl_enable_OES_vertex_array_object(GL.contexts.get(ctx).GLctx);
   },
 
   $webgl_enable_WEBGL_draw_buffers: function(ctx) {
@@ -132,7 +132,7 @@ var LibraryGL = {
 
   emscripten_webgl_enable_WEBGL_draw_buffers__deps: ['$webgl_enable_WEBGL_draw_buffers'],
   emscripten_webgl_enable_WEBGL_draw_buffers: function(ctx) {
-    return webgl_enable_WEBGL_draw_buffers(GL.contexts[ctx].GLctx);
+    return webgl_enable_WEBGL_draw_buffers(GL.contexts.get(ctx).GLctx);
   },
 #endif
 
@@ -143,16 +143,21 @@ var LibraryGL = {
 
   emscripten_webgl_enable_WEBGL_multi_draw__deps: ['$webgl_enable_WEBGL_multi_draw'],
   emscripten_webgl_enable_WEBGL_multi_draw: function(ctx) {
-    return webgl_enable_WEBGL_multi_draw(GL.contexts[ctx].GLctx);
+    return webgl_enable_WEBGL_multi_draw(GL.contexts(ctx).GLctx);
   },
 
-  $GL__postset: 'var GLctx;',
-#if GL_SUPPORT_AUTOMATIC_ENABLE_EXTENSIONS
-  // If GL_SUPPORT_AUTOMATIC_ENABLE_EXTENSIONS is enabled, GL.initExtensions() will call to initialize these.
+  $GL__postset: `
+    var GLctx;
+    GL.init();
+  `,
   $GL__deps: [
+    '$HandleAllocator',
 #if PTHREADS
     'malloc', // Needed by registerContext
 #endif
+#if GL_SUPPORT_AUTOMATIC_ENABLE_EXTENSIONS
+    // If GL_SUPPORT_AUTOMATIC_ENABLE_EXTENSIONS is enabled,
+    // GL.initExtensions() will call to initialize these.
 #if MIN_WEBGL_VERSION == 1
     '$webgl_enable_ANGLE_instanced_arrays',
     '$webgl_enable_OES_vertex_array_object',
@@ -163,8 +168,8 @@ var LibraryGL = {
     '$webgl_enable_WEBGL_multi_draw_instanced_base_vertex_base_instance',
 #endif
     '$webgl_enable_WEBGL_multi_draw',
-  ],
 #endif
+  ],
   $GL: {
 #if GL_DEBUG
     debug: true,
@@ -183,23 +188,24 @@ var LibraryGL = {
     currElementArrayBuffer: 0,
 #endif
 */
+    init: () => {
+      GL.programs = new HandleAllocator();
+      GL.buffers = new HandleAllocator();
+      GL.framebuffers = new HandleAllocator();
+      GL.renderbuffers = new HandleAllocator();
+      GL.textures = new HandleAllocator();
+      GL.shaders = new HandleAllocator();
+#if PTHREADS // with pthreads a context is a location in memory with some synchronized data between threads
+      GL.contexts = new Map();
+#else            // without pthreads, it's just an integer ID
+      GL.contexts = new HandleAllocator();
+#endif
+    },
 
-    counter: 1, // 0 is reserved as 'null' in gl
-    buffers: [],
 #if FULL_ES3
     mappedBuffers: {},
 #endif
-    programs: [],
-    framebuffers: [],
-    renderbuffers: [],
-    textures: [],
-    shaders: [],
     vaos: [],
-#if PTHREADS // with pthreads a context is a location in memory with some synchronized data between threads
-    contexts: {},
-#else            // without pthreads, it's just an integer ID
-    contexts: [],
-#endif
     offscreenCanvases: {}, // DOM ID -> OffscreenCanvas mappings of <canvas> elements that have their rendering control transferred to offscreen.
     queries: [], // on WebGL1 stores WebGLTimerQueryEXT, on WebGL2 WebGLQuery
 #if MAX_WEBGL_VERSION >= 2
@@ -241,13 +247,37 @@ var LibraryGL = {
       }
 #endif
     },
-    // Get a new ID for a texture/buffer/etc., while keeping the table dense and fast. Creation is fairly rare so it is worth optimizing lookups later.
-    getNewId: function(table) {
-      var ret = GL.counter++;
-      for (var i = table.length; i < ret; i++) {
-        table[i] = null;
+
+    // The code path for creating textures, buffers, framebuffers and other
+    // objects is so identical to each other (and not in fast path), that merge
+    // the functions together to only have one generated copy of this.
+    // 'createFunction' refers to the WebGL context function name to do the
+    // actual creation, 'objectTable' points to the GL object table where to
+    // populate the created objects, and 'functionName' carries the name of the
+    // caller for debug information.
+    genObject__sig: 'vii',
+    genObject: function(n, buffers, createFunction, objectTable
+  #if GL_ASSERTIONS
+      , functionName
+  #endif
+      ) {
+      for (var i = 0; i < n; i++) {
+        var buffer = GLctx[createFunction]();
+        var id = 0;
+        if (buffer) {
+          id = objectTable.allocate(buffer);
+          buffer.name = id;
+        } else {
+          GL.recordError(0x502 /* GL_INVALID_OPERATION */);
+  #if GL_ASSERTIONS
+          err('GL_INVALID_OPERATION in ' + functionName + ': GLctx.' + createFunction + ' returned null - most likely GL context is lost!');
+  #endif
+        }
+#if GL_ASSERTIONS
+        dbg('genObject (' + functionName + ') -> ' + id);
+#endif
+        {{{ makeSetValue('buffers', 'i*4', 'id', 'i32') }}};
       }
-      return ret;
     },
 
 #if FULL_ES2 || LEGACY_GL_EMULATION
@@ -379,7 +409,7 @@ var LibraryGL = {
       }
 #if LEGACY_GL_EMULATION
       // Let's see if we need to enable the standard derivatives extension
-      var type = GLctx.getShaderParameter(GL.shaders[shader], 0x8B4F /* GL_SHADER_TYPE */);
+      var type = GLctx.getShaderParameter(GL.shaders.get(shader), 0x8B4F /* GL_SHADER_TYPE */);
       if (type == 0x8B30 /* GL_FRAGMENT_SHADER */) {
         if (GLEmulation.findToken(source, "dFdx") ||
             GLEmulation.findToken(source, "dFdy") ||
@@ -449,19 +479,20 @@ var LibraryGL = {
 
     postDrawHandleClientVertexAttribBindings: function postDrawHandleClientVertexAttribBindings() {
       if (GL.resetBufferBinding) {
-        GLctx.bindBuffer(0x8892 /*GL_ARRAY_BUFFER*/, GL.buffers[GLctx.currentArrayBufferBinding]);
+        GLctx.bindBuffer(0x8892 /*GL_ARRAY_BUFFER*/, GL.buffers.get(GLctx.currentArrayBufferBinding));
       }
     },
 #endif
 
 #if GL_ASSERTIONS
-    validateGLObjectID: function(objectHandleArray, objectID, callerFunctionName, objectReadableType) {
-      if (objectID != 0) {
-        if (objectHandleArray[objectID] === null) {
-          err(callerFunctionName + ' called with an already deleted ' + objectReadableType + ' ID ' + objectID + '!');
-        } else if (!(objectID in objectHandleArray)) {
-          err(callerFunctionName + ' called with a nonexisting ' + objectReadableType + ' ID ' + objectID + '!');
-        }
+    validateGLObjectID: function(allocator, objectID, callerFunctionName, objectReadableType) {
+      if (objectID != 0 && !allocator[objectID]) {
+        err(callerFunctionName + ' called with a nonexisting ' + objectReadableType + ' ID ' + objectID + '!');
+      }
+    },
+    validateGLHandle: function(allocator, objectID, callerFunctionName, objectReadableType) {
+      if (objectID != 0 && !allocator.has(objectID)) {
+        err(callerFunctionName + ' called with a nonexisting ' + objectReadableType + ' ID ' + objectID + '!');
       }
     },
     // Validates that user obeys GL spec #6.4: http://www.khronos.org/registry/webgl/specs/latest/1.0/#6.4
@@ -972,27 +1003,26 @@ var LibraryGL = {
 #endif
 
     registerContext: function(ctx, webGLContextAttributes) {
-#if PTHREADS
-      // with pthreads a context is a location in memory with some synchronized data between threads
-      var handle = _malloc(8);
-#if GL_ASSERTIONS
-      assert(handle, 'malloc() failed in GL.registerContext!');
-#endif
-#if GL_SUPPORT_EXPLICIT_SWAP_CONTROL
-      {{{ makeSetValue('handle', 0, 'webGLContextAttributes.explicitSwapControl', 'i32')}}}; // explicitSwapControl
-#endif
-      {{{ makeSetValue('handle', 4, '_pthread_self()', 'i32')}}}; // the thread pointer of the thread that owns the control of the context
-#else // PTHREADS
-      // without pthreads a context is just an integer ID
-      var handle = GL.getNewId(GL.contexts);
-#endif // PTHREADS
-
       var context = {
-        handle: handle,
         attributes: webGLContextAttributes,
         version: webGLContextAttributes.majorVersion,
         GLctx: ctx
       };
+#if PTHREADS
+      // with pthreads a context is a location in memory with some synchronized data between threads
+      context.handle = _malloc(8);
+      GL.contexts.set(context.handle, context);
+#if GL_ASSERTIONS
+      assert(handle, 'malloc() failed in GL.registerContext!');
+#endif
+#if GL_SUPPORT_EXPLICIT_SWAP_CONTROL
+      {{{ makeSetValue('context.handle', 0, 'webGLContextAttributes.explicitSwapControl', 'i32')}}}; // explicitSwapControl
+#endif
+      {{{ makeSetValue('context.handle', 4, '_pthread_self()', 'i32')}}}; // the thread pointer of the thread that owns the control of the context
+#else // PTHREADS
+      // without pthreads a context is just an integer ID
+      context.handle = GL.contexts.allocate(context);
+#endif // PTHREADS
 
 #if WORKAROUND_OLD_WEBGL_UNIFORM_UPLOAD_IGNORED_OFFSET_BUG
       context.cannotHandleOffsetsInUniformArrayViews = (function(g) {
@@ -1019,7 +1049,6 @@ var LibraryGL = {
 
       // Store the created context object so that we can access the context given a canvas without having to pass the parameters again.
       if (ctx.canvas) ctx.canvas.GLctxObject = context;
-      GL.contexts[handle] = context;
 #if GL_SUPPORT_AUTOMATIC_ENABLE_EXTENSIONS
       if (typeof webGLContextAttributes.enableExtensionsByDefault == 'undefined' || webGLContextAttributes.enableExtensionsByDefault) {
         GL.initExtensions(context);
@@ -1045,12 +1074,12 @@ var LibraryGL = {
 #endif
 
 #endif
-      return handle;
+      return context.handle;
     },
 
     makeContextCurrent: function(contextHandle) {
 #if GL_DEBUG
-      if (contextHandle && !GL.contexts[contextHandle]) {
+      if (contextHandle && !GL.contexts.has(contextHandle)) {
 #if PTHREADS
         dbg('GL.makeContextCurrent() failed! WebGL context ' + contextHandle + ' does not exist, or was created on another thread!');
 #else
@@ -1059,23 +1088,26 @@ var LibraryGL = {
       }
 #endif
 
-      GL.currentContext = GL.contexts[contextHandle]; // Active Emscripten GL layer context object.
+      GL.currentContext = contextHandle ? GL.contexts.get(contextHandle) : contextHandle; // Active Emscripten GL layer context object.
       Module.ctx = GLctx = GL.currentContext && GL.currentContext.GLctx; // Active WebGL context object.
       return !(contextHandle && !GLctx);
     },
 
     getContext: function(contextHandle) {
-      return GL.contexts[contextHandle];
+      return GL.contexts.get(contextHandle);
     },
 
     deleteContext: function(contextHandle) {
-      if (GL.currentContext === GL.contexts[contextHandle]) GL.currentContext = null;
-      if (typeof JSEvents == 'object') JSEvents.removeAllHandlersOnTarget(GL.contexts[contextHandle].GLctx.canvas); // Release all JS event handlers on the DOM element that the GL context is associated with since the context is now deleted.
-      if (GL.contexts[contextHandle] && GL.contexts[contextHandle].GLctx.canvas) GL.contexts[contextHandle].GLctx.canvas.GLctxObject = undefined; // Make sure the canvas object no longer refers to the context object so there are no GC surprises.
+      var ctx = GL.contexts.get(contextHandle);
+      if (GL.currentContext === ctx) GL.currentContext = null;
+      if (typeof JSEvents == 'object') JSEvents.removeAllHandlersOnTarget(ctx.GLctx.canvas); // Release all JS event handlers on the DOM element that the GL context is associated with since the context is now deleted.
+      if (ctx && ctx.GLctx.canvas) ctx.GLctx.canvas.GLctxObject = undefined; // Make sure the canvas object no longer refers to the context object so there are no GC surprises.
 #if PTHREADS
-      _free(GL.contexts[contextHandle].handle);
+      _free(ctx.handle);
+      GL.contexts.delete(contextHandle);
+#else
+      GL.contexts.free(contextHandle);
 #endif
-      GL.contexts[contextHandle] = null;
     },
 
 #if GL_SUPPORT_AUTOMATIC_ENABLE_EXTENSIONS
@@ -1416,11 +1448,11 @@ var LibraryGL = {
   glDeleteTextures: function(n, textures) {
     for (var i = 0; i < n; i++) {
       var id = {{{ makeGetValue('textures', 'i*4', 'i32') }}};
-      var texture = GL.textures[id];
+      var texture = GL.textures.get(id);
       if (!texture) continue; // GL spec: "glDeleteTextures silently ignores 0s and names that do not correspond to existing textures".
       GLctx.deleteTexture(texture);
       texture.name = 0;
-      GL.textures[id] = null;
+      GL.textures.free(id);
     }
   },
 
@@ -1616,9 +1648,9 @@ var LibraryGL = {
 
   glBindTexture: function(target, texture) {
 #if GL_ASSERTIONS
-    GL.validateGLObjectID(GL.textures, texture, 'glBindTexture', 'texture');
+    GL.validateGLHandle(GL.textures, texture, 'glBindTexture', 'texture');
 #endif
-    GLctx.bindTexture(target, GL.textures[texture]);
+    GLctx.bindTexture(target, GL.textures.get(texture));
   },
 
   glGetTexParameterfv: function(target, pname, params) {
@@ -1658,48 +1690,21 @@ var LibraryGL = {
   },
 
   glIsTexture: function(id) {
-    var texture = GL.textures[id];
-    if (!texture) return 0;
+    if (!GL.textures.has(id)) return 0;
+    var texture = GL.textures.get(id);
     return GLctx.isTexture(texture);
   },
 
-  // The code path for creating textures, buffers, framebuffers and other objects is so identical to each other (and not in fast path), that
-  // merge the functions together to only have one generated copy of this. 'createFunction' refers to the WebGL context function name to do
-  // the actual creation, 'objectTable' points to the GL object table where to populate the created objects, and 'functionName' carries
-  // the name of the caller for debug information.
-  $__glGenObject: function(n, buffers, createFunction, objectTable
-#if GL_ASSERTIONS
-    , functionName
-#endif
-    ) {
-    for (var i = 0; i < n; i++) {
-      var buffer = GLctx[createFunction]();
-      var id = buffer && GL.getNewId(objectTable);
-      if (buffer) {
-        buffer.name = id;
-        objectTable[id] = buffer;
-      } else {
-        GL.recordError(0x502 /* GL_INVALID_OPERATION */);
-#if GL_ASSERTIONS
-        err('GL_INVALID_OPERATION in ' + functionName + ': GLctx.' + createFunction + ' returned null - most likely GL context is lost!');
-#endif
-      }
-      {{{ makeSetValue('buffers', 'i*4', 'id', 'i32') }}};
-    }
-  },
-
-  glGenBuffers__deps: ['$__glGenObject'],
   glGenBuffers: function(n, buffers) {
-    __glGenObject(n, buffers, 'createBuffer', GL.buffers
+    GL.genObject(n, buffers, 'createBuffer', GL.buffers
 #if GL_ASSERTIONS
     , 'glGenBuffers'
 #endif
       );
   },
 
-  glGenTextures__deps: ['$__glGenObject'],
   glGenTextures: function(n, textures) {
-    __glGenObject(n, textures, 'createTexture', GL.textures
+    GL.genObject(n, textures, 'createTexture', GL.textures
 #if GL_ASSERTIONS
     , 'glGenTextures'
 #endif
@@ -1709,15 +1714,15 @@ var LibraryGL = {
   glDeleteBuffers: function(n, buffers) {
     for (var i = 0; i < n; i++) {
       var id = {{{ makeGetValue('buffers', 'i*4', 'i32') }}};
-      var buffer = GL.buffers[id];
 
       // From spec: "glDeleteBuffers silently ignores 0's and names that do not
       // correspond to existing buffer objects."
-      if (!buffer) continue;
+      if (!GL.buffers.has(id)) continue;
 
+      var buffer = GL.buffers.get(id);
       GLctx.deleteBuffer(buffer);
       buffer.name = 0;
-      GL.buffers[id] = null;
+      GL.buffers.free(id);
 
 #if FULL_ES2 || LEGACY_GL_EMULATION
       if (id == GLctx.currentArrayBufferBinding) GLctx.currentArrayBufferBinding = 0;
@@ -1804,9 +1809,7 @@ var LibraryGL = {
         while (i < n) {{{ makeSetValue('ids', 'i++*4', 0, 'i32') }}};
         return;
       }
-      var id = GL.getNewId(GL.queries);
-      query.name = id;
-      GL.queries[id] = query;
+      query.name = GL.queries.allocate(query);
       {{{ makeSetValue('ids', 'i*4', 'id', 'i32') }}};
     }
   },
@@ -1832,7 +1835,7 @@ var LibraryGL = {
   glBeginQueryEXT__sig: 'vii',
   glBeginQueryEXT: function(target, id) {
 #if GL_ASSERTIONS
-    GL.validateGLObjectID(GL.queries, id, 'glBeginQueryEXT', 'id');
+    GL.validateGLHandle(GL.queries, id, 'glBeginQueryEXT', 'id');
 #endif
     GLctx.disjointTimerQueryExt['beginQueryEXT'](target, GL.queries[id]);
   },
@@ -1848,7 +1851,7 @@ var LibraryGL = {
   glQueryCounterEXT__sig: 'vii',
   glQueryCounterEXT: function(id, target) {
 #if GL_ASSERTIONS
-    GL.validateGLObjectID(GL.queries, id, 'glQueryCounterEXT', 'id');
+    GL.validateGLHandle(GL.queries, id, 'glQueryCounterEXT', 'id');
 #endif
     GLctx.disjointTimerQueryExt['queryCounterEXT'](GL.queries[id], target);
   },
@@ -1879,7 +1882,7 @@ var LibraryGL = {
       return;
     }
 #if GL_ASSERTIONS
-    GL.validateGLObjectID(GL.queries, id, 'glGetQueryObjectivEXT', 'id');
+    GL.validateGLHandle(GL.queries, id, 'glGetQueryObjectivEXT', 'id');
 #endif
     var query = GL.queries[id];
     var param = GLctx.disjointTimerQueryExt['getQueryObjectEXT'](query, pname);
@@ -1906,7 +1909,7 @@ var LibraryGL = {
       return;
     }
 #if GL_ASSERTIONS
-    GL.validateGLObjectID(GL.queries, id, 'glGetQueryObjecti64vEXT', 'id');
+    GL.validateGLHandle(GL.queries, id, 'glGetQueryObjecti64vEXT', 'id');
 #endif
     var query = GL.queries[id];
     var param;
@@ -1932,14 +1935,13 @@ var LibraryGL = {
   glGetQueryObjectui64vEXT: 'glGetQueryObjecti64vEXT',
 
   glIsBuffer: function(buffer) {
-    var b = GL.buffers[buffer];
-    if (!b) return 0;
+    if (!GL.buffers.has(buffer)) return 0;
+    var b = GL.buffers.get(buffer);
     return GLctx.isBuffer(b);
   },
 
-  glGenRenderbuffers__deps: ['$__glGenObject'],
   glGenRenderbuffers: function(n, renderbuffers) {
-    __glGenObject(n, renderbuffers, 'createRenderbuffer', GL.renderbuffers
+    GL.genObject(n, renderbuffers, 'createRenderbuffer', GL.renderbuffers
 #if GL_ASSERTIONS
     , 'glGenRenderbuffers'
 #endif
@@ -1949,19 +1951,19 @@ var LibraryGL = {
   glDeleteRenderbuffers: function(n, renderbuffers) {
     for (var i = 0; i < n; i++) {
       var id = {{{ makeGetValue('renderbuffers', 'i*4', 'i32') }}};
-      var renderbuffer = GL.renderbuffers[id];
-      if (!renderbuffer) continue; // GL spec: "glDeleteRenderbuffers silently ignores 0s and names that do not correspond to existing renderbuffer objects".
+      if (!GL.renderbuffers.has(id)) continue; // GL spec: "glDeleteRenderbuffers silently ignores 0s and names that do not correspond to existing renderbuffer objects".
+      var renderbuffer = GL.renderbuffers.get(id);
       GLctx.deleteRenderbuffer(renderbuffer);
       renderbuffer.name = 0;
-      GL.renderbuffers[id] = null;
+      GL.renderbuffers.free(id);
     }
   },
 
   glBindRenderbuffer: function(target, renderbuffer) {
 #if GL_ASSERTIONS
-    GL.validateGLObjectID(GL.renderbuffers, renderbuffer, 'glBindRenderbuffer', 'renderbuffer');
+    GL.validateGLHandle(GL.renderbuffers, renderbuffer, 'glBindRenderbuffer', 'renderbuffer');
 #endif
-    GLctx.bindRenderbuffer(target, GL.renderbuffers[renderbuffer]);
+    GLctx.bindRenderbuffer(target, GL.renderbuffers.get(renderbuffer));
   },
 
   glGetRenderbufferParameteriv: function(target, pname, params) {
@@ -1978,7 +1980,7 @@ var LibraryGL = {
   },
 
   glIsRenderbuffer: function(renderbuffer) {
-    var rb = GL.renderbuffers[renderbuffer];
+    var rb = GL.renderbuffers.get(renderbuffer);
     if (!rb) return 0;
     return GLctx.isRenderbuffer(rb);
   },
@@ -1996,10 +1998,10 @@ var LibraryGL = {
       return;
     }
 #if GL_ASSERTIONS
-    GL.validateGLObjectID(GL.programs, program, 'glGetUniform*v', 'program');
-    GL.validateGLObjectID(program.uniformLocsById, location, 'glGetUniform*v', 'location');
+    GL.validateGLHandle(GL.programs, program, 'glGetUniform*v', 'program');
+    GL.validateGL(program.uniformLocsById, location, 'glGetUniform*v', 'location');
 #endif
-    program = GL.programs[program];
+    program = GL.programs.get(program);
     webglPrepareUniformLocationsBeforeFirstUse(program);
     var data = GLctx.getUniform(program, webglGetUniformLocation(location));
     if (typeof data == 'number' || typeof data == 'boolean') {
@@ -2123,7 +2125,7 @@ var LibraryGL = {
   glGetUniformLocation: function(program, name) {
 
 #if GL_ASSERTIONS
-    GL.validateGLObjectID(GL.programs, program, 'glGetUniformLocation', 'program');
+    GL.validateGLHandle(GL.programs, program, 'glGetUniformLocation', 'program');
 #endif
     name = UTF8ToString(name);
 
@@ -2131,7 +2133,7 @@ var LibraryGL = {
     assert(!name.includes(' '), 'Uniform names passed to glGetUniformLocation() should not contain spaces! (received "' + name + '")');
 #endif
 
-    if (program = GL.programs[program]) {
+    if (program = GL.programs.get(program)) {
       webglPrepareUniformLocationsBeforeFirstUse(program);
       var uniformLocsById = program.uniformLocsById; // Maps GLuint -> WebGLUniformLocation
       var arrayIndex = 0;
@@ -2845,7 +2847,7 @@ var LibraryGL = {
 
   glBindBuffer: function(target, buffer) {
 #if GL_ASSERTIONS
-    GL.validateGLObjectID(GL.buffers, buffer, 'glBindBuffer', 'buffer');
+    GL.validateGLHandle(GL.buffers, buffer, 'glBindBuffer', 'buffer');
 #endif
 #if FULL_ES2 || LEGACY_GL_EMULATION
     if (target == 0x8892 /*GL_ARRAY_BUFFER*/) {
@@ -2873,7 +2875,7 @@ var LibraryGL = {
       GLctx.currentPixelUnpackBufferBinding = buffer;
     }
 #endif
-    GLctx.bindBuffer(target, GL.buffers[buffer]);
+    GLctx.bindBuffer(target, GL.buffers.get(buffer));
   },
 
   glVertexAttrib1fv: function(index, v) {
@@ -2913,14 +2915,14 @@ var LibraryGL = {
   },
 
   glGetAttribLocation: function(program, name) {
-    return GLctx.getAttribLocation(GL.programs[program], UTF8ToString(name));
+    return GLctx.getAttribLocation(GL.programs.get(program), UTF8ToString(name));
   },
 
   $__glGetActiveAttribOrUniform: function(funcName, program, index, bufSize, length, size, type, name) {
 #if GL_ASSERTIONS
-    GL.validateGLObjectID(GL.programs, program, funcName, 'program');
+    GL.validateGLHandle(GL.programs, program, funcName, 'program');
 #endif
-    program = GL.programs[program];
+    program = GL.programs.get(program);
     var info = GLctx[funcName](program, index);
     if (info) { // If an error occurs, nothing will be written to length, size and type and name.
       var numBytesWrittenExclNull = name && stringToUTF8(info.name, name, bufSize);
@@ -2941,33 +2943,29 @@ var LibraryGL = {
   },
 
   glCreateShader: function(shaderType) {
-    var id = GL.getNewId(GL.shaders);
-    GL.shaders[id] = GLctx.createShader(shaderType);
-
+    var shader = GLctx.createShader(shaderType);
 #if GL_EXPLICIT_UNIFORM_LOCATION || GL_EXPLICIT_UNIFORM_BINDING
     // GL_VERTEX_SHADER = 0x8B31, GL_FRAGMENT_SHADER = 0x8B30
-    GL.shaders[id].shaderType = shaderType&1?'vs':'fs';
+    shader.shaderType = shaderType & 1 ? 'vs' : 'fs';
 #endif
-
-    return id;
+    return GL.shaders.allocate(shader);
   },
 
   glDeleteShader: function(id) {
     if (!id) return;
-    var shader = GL.shaders[id];
-    if (!shader) { // glDeleteShader actually signals an error when deleting a nonexisting object, unlike some other GL delete functions.
+    if (!GL.shaders.has(id)) { // glDeleteShader actually signals an error when deleting a nonexisting object, unlike some other GL delete functions.
       GL.recordError(0x501 /* GL_INVALID_VALUE */);
       return;
     }
-    GLctx.deleteShader(shader);
-    GL.shaders[id] = null;
+    GLctx.deleteShader(GL.shaders.get(id));
+    GL.shaders.free(id);
   },
 
   glGetAttachedShaders: function(program, maxCount, count, shaders) {
 #if GL_ASSERTIONS
-    GL.validateGLObjectID(GL.programs, program, 'glGetAttachedShaders', 'program');
+    GL.validateGLHandle(GL.programs, program, 'glGetAttachedShaders', 'program');
 #endif
-    var result = GLctx.getAttachedShaders(GL.programs[program]);
+    var result = GLctx.getAttachedShaders(GL.programs.get(program));
     var len = result.length;
     if (len > maxCount) {
       len = maxCount;
@@ -2987,7 +2985,7 @@ var LibraryGL = {
 #endif
   glShaderSource: function(shader, count, string, length) {
 #if GL_ASSERTIONS
-    GL.validateGLObjectID(GL.shaders, shader, 'glShaderSource', 'shader');
+    GL.validateGLHandle(GL.shaders, shader, 'glShaderSource', 'shader');
 #endif
     var source = GL.getSource(shader, count, string, length);
 
@@ -3067,7 +3065,7 @@ var LibraryGL = {
     source = source.replace(regex, '$2');
 
     // Remember all the directives to be handled after glLinkProgram is called.
-    GL.shaders[shader].explicitUniformLocations = explicitUniformLocations;
+    GL.shaders.get(shader).explicitUniformLocations = explicitUniformLocations;
 
 #if GL_DEBUG
     dbg('Shader source after removing layout location directives: ' + source);
@@ -3138,19 +3136,19 @@ var LibraryGL = {
 #endif
 
     // Remember all the directives to be handled after glLinkProgram is called.
-    GL.shaders[shader].explicitSamplerBindings = samplerBindings;
-    GL.shaders[shader].explicitUniformBindings = uniformBindings;
+    GL.shaders.get(shader).explicitSamplerBindings = samplerBindings;
+    GL.shaders.get(shader).explicitUniformBindings = uniformBindings;
 
 #endif // ~GL_EXPLICIT_UNIFORM_BINDING
 
-    GLctx.shaderSource(GL.shaders[shader], source);
+    GLctx.shaderSource(GL.shaders.get(shader), source);
   },
 
   glGetShaderSource: function(shader, bufSize, length, source) {
 #if GL_ASSERTIONS
-    GL.validateGLObjectID(GL.shaders, shader, 'glGetShaderSource', 'shader');
+    GL.validateGLHandle(GL.shaders, shader, 'glGetShaderSource', 'shader');
 #endif
-    var result = GLctx.getShaderSource(GL.shaders[shader]);
+    var result = GLctx.getShaderSource(GL.shaders.get(shader));
     if (!result) return; // If an error occurs, nothing will be written to length or source.
     var numBytesWrittenExclNull = (bufSize > 0 && source) ? stringToUTF8(result, source, bufSize) : 0;
     if (length) {{{ makeSetValue('length', '0', 'numBytesWrittenExclNull', 'i32') }}};
@@ -3158,20 +3156,20 @@ var LibraryGL = {
 
   glCompileShader: function(shader) {
 #if GL_ASSERTIONS
-    GL.validateGLObjectID(GL.shaders, shader, 'glCompileShader', 'shader');
+    GL.validateGLHandle(GL.shaders, shader, 'glCompileShader', 'shader');
 #endif
-    GLctx.compileShader(GL.shaders[shader]);
+    GLctx.compileShader(GL.shaders.get(shader));
 #if GL_DEBUG
-    var log = (GLctx.getShaderInfoLog(GL.shaders[shader]) || '').trim();
+    var log = (GLctx.getShaderInfoLog(GL.shaders.get(shader)) || '').trim();
     if (log) dbg('glCompileShader: ' + log);
 #endif
   },
 
   glGetShaderInfoLog: function(shader, maxLength, length, infoLog) {
 #if GL_ASSERTIONS
-    GL.validateGLObjectID(GL.shaders, shader, 'glGetShaderInfoLog', 'shader');
+    GL.validateGLHandle(GL.shaders, shader, 'glGetShaderInfoLog', 'shader');
 #endif
-    var log = GLctx.getShaderInfoLog(GL.shaders[shader]);
+    var log = GLctx.getShaderInfoLog(GL.shaders.get(shader));
 #if GL_ASSERTIONS || GL_TRACK_ERRORS
     if (log === null) log = '(unknown error)';
 #endif
@@ -3190,10 +3188,10 @@ var LibraryGL = {
       return;
     }
 #if GL_ASSERTIONS
-    GL.validateGLObjectID(GL.shaders, shader, 'glGetShaderiv', 'shader');
+    GL.validateGLHandle(GL.shaders, shader, 'glGetShaderiv', 'shader');
 #endif
     if (pname == 0x8B84) { // GL_INFO_LOG_LENGTH
-      var log = GLctx.getShaderInfoLog(GL.shaders[shader]);
+      var log = GLctx.getShaderInfoLog(GL.shaders.get(shader));
 #if GL_ASSERTIONS || GL_TRACK_ERRORS
       if (log === null) log = '(unknown error)';
 #endif
@@ -3204,13 +3202,13 @@ var LibraryGL = {
       var logLength = log ? log.length + 1 : 0;
       {{{ makeSetValue('p', '0', 'logLength', 'i32') }}};
     } else if (pname == 0x8B88) { // GL_SHADER_SOURCE_LENGTH
-      var source = GLctx.getShaderSource(GL.shaders[shader]);
+      var source = GLctx.getShaderSource(GL.shaders.get(shader));
       // source may be a null, or the empty string, both of which are falsey
       // values that we report a 0 length for.
       var sourceLength = source ? source.length + 1 : 0;
       {{{ makeSetValue('p', '0', 'sourceLength', 'i32') }}};
     } else {
-      {{{ makeSetValue('p', '0', 'GLctx.getShaderParameter(GL.shaders[shader], pname)', 'i32') }}};
+      {{{ makeSetValue('p', '0', 'GLctx.getShaderParameter(GL.shaders.get(shader), pname)', 'i32') }}};
     }
   },
 
@@ -3225,10 +3223,10 @@ var LibraryGL = {
       return;
     }
 #if GL_ASSERTIONS
-    GL.validateGLObjectID(GL.programs, program, 'glGetProgramiv', 'program');
+    GL.validateGLHandle(GL.programs, program, 'glGetProgramiv', 'program');
 #endif
 
-    if (program >= GL.counter) {
+    if (GL.programs.has(program)) {
 #if GL_ASSERTIONS
       err('GL_INVALID_VALUE in glGetProgramiv(program=' + program + ', pname=' + pname + ', p=' + ptrToString(p) + '): The specified program object name was not generated by GL!');
 #endif
@@ -3236,7 +3234,7 @@ var LibraryGL = {
       return;
     }
 
-    program = GL.programs[program];
+    program = GL.programs.get(program);
 
     if (pname == 0x8B84) { // GL_INFO_LOG_LENGTH
       var log = GLctx.getProgramInfoLog(program);
@@ -3271,56 +3269,54 @@ var LibraryGL = {
   },
 
   glIsShader: function(shader) {
-    var s = GL.shaders[shader];
-    if (!s) return 0;
+    if (!GL.shaders.has(shader)) return 0;
+    var s = GL.shaders.get(shader);
     return GLctx.isShader(s);
   },
 
   glCreateProgram: function() {
-    var id = GL.getNewId(GL.programs);
     var program = GLctx.createProgram();
     // Store additional information needed for each shader program:
-    program.name = id;
+    program.name = GL.programs.allocate(program);
     // Lazy cache results of glGetProgramiv(GL_ACTIVE_UNIFORM_MAX_LENGTH/GL_ACTIVE_ATTRIBUTE_MAX_LENGTH/GL_ACTIVE_UNIFORM_BLOCK_MAX_NAME_LENGTH)
     program.maxUniformLength = program.maxAttributeLength = program.maxUniformBlockNameLength = 0;
     program.uniformIdCounter = 1;
-    GL.programs[id] = program;
-    return id;
+    return program.name;
   },
 
   glDeleteProgram: function(id) {
     if (!id) return;
-    var program = GL.programs[id];
+    var program = GL.programs.get(id);
     if (!program) { // glDeleteProgram actually signals an error when deleting a nonexisting object, unlike some other GL delete functions.
       GL.recordError(0x501 /* GL_INVALID_VALUE */);
       return;
     }
     GLctx.deleteProgram(program);
     program.name = 0;
-    GL.programs[id] = null;
+    GL.programs.free(id);
   },
 
   glAttachShader: function(program, shader) {
 #if GL_ASSERTIONS
-    GL.validateGLObjectID(GL.programs, program, 'glAttachShader', 'program');
-    GL.validateGLObjectID(GL.shaders, shader, 'glAttachShader', 'shader');
+    GL.validateGLHandle(GL.programs, program, 'glAttachShader', 'program');
+    GL.validateGLHandle(GL.shaders, shader, 'glAttachShader', 'shader');
 #endif
 #if GL_EXPLICIT_UNIFORM_LOCATION || GL_EXPLICIT_UNIFORM_BINDING
-    program = GL.programs[program];
-    shader = GL.shaders[shader];
+    program = GL.programs.get(program);
+    shader = GL.shaders.get(shader);
     program[shader.shaderType] = shader;
     GLctx.attachShader(program, shader);
 #else
-    GLctx.attachShader(GL.programs[program], GL.shaders[shader]);
+    GLctx.attachShader(GL.programs.get(program), GL.shaders.get(shader));
 #endif
   },
 
   glDetachShader: function(program, shader) {
 #if GL_ASSERTIONS
-    GL.validateGLObjectID(GL.programs, program, 'glDetachShader', 'program');
-    GL.validateGLObjectID(GL.shaders, shader, 'glDetachShader', 'shader');
+    GL.validateGLHandle(GL.programs, program, 'glDetachShader', 'program');
+    GL.validateGLHandle(GL.shaders, shader, 'glDetachShader', 'shader');
 #endif
-    GLctx.detachShader(GL.programs[program], GL.shaders[shader]);
+    GLctx.detachShader(GL.programs.get(program), GL.shaders.get(shader));
   },
 
   glGetShaderPrecisionFormat: function(shaderType, precisionType, range, precision) {
@@ -3332,9 +3328,9 @@ var LibraryGL = {
 
   glLinkProgram: function(program) {
 #if GL_ASSERTIONS
-    GL.validateGLObjectID(GL.programs, program, 'glLinkProgram', 'program');
+    GL.validateGLHandle(GL.programs, program, 'glLinkProgram', 'program');
 #endif
-    program = GL.programs[program];
+    program = GL.programs.get(program);
     GLctx.linkProgram(program);
 #if GL_DEBUG
     var log = (GLctx.getProgramInfoLog(program) || '').trim();
@@ -3386,9 +3382,9 @@ var LibraryGL = {
 
   glGetProgramInfoLog: function(program, maxLength, length, infoLog) {
 #if GL_ASSERTIONS
-    GL.validateGLObjectID(GL.programs, program, 'glGetProgramInfoLog', 'program');
+    GL.validateGLHandle(GL.programs, program, 'glGetProgramInfoLog', 'program');
 #endif
-    var log = GLctx.getProgramInfoLog(GL.programs[program]);
+    var log = GLctx.getProgramInfoLog(GL.programs.get(program));
 #if GL_ASSERTIONS || GL_TRACK_ERRORS
     if (log === null) log = '(unknown error)';
 #endif
@@ -3439,9 +3435,9 @@ var LibraryGL = {
 #endif
   glUseProgram: function(program) {
 #if GL_ASSERTIONS
-    GL.validateGLObjectID(GL.programs, program, 'glUseProgram', 'program');
+    GL.validateGLHandle(GL.programs, program, 'glUseProgram', 'program');
 #endif
-    program = GL.programs[program];
+    program = GL.programs.get(program);
     GLctx.useProgram(program);
     // Record the currently active program so that we can access the uniform
     // mapping table of that program.
@@ -3456,43 +3452,42 @@ var LibraryGL = {
 
   glValidateProgram: function(program) {
 #if GL_ASSERTIONS
-    GL.validateGLObjectID(GL.programs, program, 'glValidateProgram', 'program');
+    GL.validateGLHandle(GL.programs, program, 'glValidateProgram', 'program');
 #endif
-    GLctx.validateProgram(GL.programs[program]);
+    GLctx.validateProgram(GL.programs.get(program));
   },
 
   glIsProgram: function(program) {
-    program = GL.programs[program];
-    if (!program) return 0;
+    if (!GL.programs.has(program)) return 0;
+    program = GL.programs.get(program);
     return GLctx.isProgram(program);
   },
 
   glBindAttribLocation: function(program, index, name) {
 #if GL_ASSERTIONS
-    GL.validateGLObjectID(GL.programs, program, 'glBindAttribLocation', 'program');
+    GL.validateGLHandle(GL.programs, program, 'glBindAttribLocation', 'program');
 #endif
-    GLctx.bindAttribLocation(GL.programs[program], index, UTF8ToString(name));
+    GLctx.bindAttribLocation(GL.programs.get(program), index, UTF8ToString(name));
   },
 
   glBindFramebuffer: function(target, framebuffer) {
 #if GL_ASSERTIONS
-    GL.validateGLObjectID(GL.framebuffers, framebuffer, 'glBindFramebuffer', 'framebuffer');
+    GL.validateGLHandle(GL.framebuffers, framebuffer, 'glBindFramebuffer', 'framebuffer');
 #endif
 
 #if OFFSCREEN_FRAMEBUFFER
     // defaultFbo may not be present if 'renderViaOffscreenBackBuffer' was not enabled during context creation time,
     // i.e. setting -sOFFSCREEN_FRAMEBUFFER at compilation time does not yet mandate that offscreen back buffer
     // is being used, but that is ultimately decided at context creation time.
-    GLctx.bindFramebuffer(target, framebuffer ? GL.framebuffers[framebuffer] : GL.currentContext.defaultFbo);
+    GLctx.bindFramebuffer(target, framebuffer ? GL.framebuffers.get(framebuffer) : GL.currentContext.defaultFbo);
 #else
-    GLctx.bindFramebuffer(target, GL.framebuffers[framebuffer]);
+    GLctx.bindFramebuffer(target, GL.framebuffers.get(framebuffer));
 #endif
 
   },
 
-  glGenFramebuffers__deps: ['$__glGenObject'],
   glGenFramebuffers: function(n, ids) {
-    __glGenObject(n, ids, 'createFramebuffer', GL.framebuffers
+    GL.genObject(n, ids, 'createFramebuffer', GL.framebuffers
 #if GL_ASSERTIONS
     , 'glGenFramebuffers'
 #endif
@@ -3502,28 +3497,28 @@ var LibraryGL = {
   glDeleteFramebuffers: function(n, framebuffers) {
     for (var i = 0; i < n; ++i) {
       var id = {{{ makeGetValue('framebuffers', 'i*4', 'i32') }}};
-      var framebuffer = GL.framebuffers[id];
+      var framebuffer = GL.framebuffers.get(id);
       if (!framebuffer) continue; // GL spec: "glDeleteFramebuffers silently ignores 0s and names that do not correspond to existing framebuffer objects".
       GLctx.deleteFramebuffer(framebuffer);
       framebuffer.name = 0;
-      GL.framebuffers[id] = null;
+      GL.framebuffers.free(id);
     }
   },
 
   glFramebufferRenderbuffer: function(target, attachment, renderbuffertarget, renderbuffer) {
 #if GL_ASSERTIONS
-    GL.validateGLObjectID(GL.renderbuffers, renderbuffer, 'glFramebufferRenderbuffer', 'renderbuffer');
+    GL.validateGLHandle(GL.renderbuffers, renderbuffer, 'glFramebufferRenderbuffer', 'renderbuffer');
 #endif
     GLctx.framebufferRenderbuffer(target, attachment, renderbuffertarget,
-                                       GL.renderbuffers[renderbuffer]);
+                                       GL.renderbuffers.get(renderbuffer));
   },
 
   glFramebufferTexture2D: function(target, attachment, textarget, texture, level) {
 #if GL_ASSERTIONS
-    GL.validateGLObjectID(GL.textures, texture, 'glFramebufferTexture2D', 'texture');
+    GL.validateGLHandle(GL.textures, texture, 'glFramebufferTexture2D', 'texture');
 #endif
     GLctx.framebufferTexture2D(target, attachment, textarget,
-                                    GL.textures[texture], level);
+                                    GL.textures.get(texture), level);
   },
 
   glGetFramebufferAttachmentParameteriv: function(target, attachment, pname, params) {
@@ -3536,12 +3531,12 @@ var LibraryGL = {
   },
 
   glIsFramebuffer: function(framebuffer) {
-    var fb = GL.framebuffers[framebuffer];
-    if (!fb) return 0;
+    if (!GL.framebuffers.has(framebuffer)) return 0;
+    var fb = GL.framebuffers.get(framebuffer);
     return GLctx.isFramebuffer(fb);
   },
 
-  glGenVertexArrays__deps: ['$__glGenObject'
+  glGenVertexArrays__deps: [
 #if LEGACY_GL_EMULATION
   , 'emulGlGenVertexArrays'
 #endif
@@ -3553,7 +3548,7 @@ var LibraryGL = {
 #if GL_ASSERTIONS
     assert(GLctx['createVertexArray'], 'Must have WebGL2 or OES_vertex_array_object to use vao');
 #endif
-    __glGenObject(n, arrays, 'createVertexArray', GL.vaos
+    GL.genObject(n, arrays, 'createVertexArray', GL.vaos
 #if GL_ASSERTIONS
     , 'glGenVertexArrays'
 #endif

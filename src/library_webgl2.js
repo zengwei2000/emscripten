@@ -411,7 +411,7 @@ var LibraryWebGL2 = {
 #if GL_ASSERTIONS
     GL.validateGLObjectID(GL.programs, program, 'glTransformFeedbackVaryings', 'program');
 #endif
-    program = GL.programs[program];
+    program = GL.programs.get(program);
     var vars = [];
     for (var i = 0; i < count; i++)
       vars.push(UTF8ToString({{{ makeGetValue('varyings', 'i*4', 'i32') }}}));
@@ -424,7 +424,7 @@ var LibraryWebGL2 = {
 #if GL_ASSERTIONS
     GL.validateGLObjectID(GL.programs, program, 'glGetTransformFeedbackVarying', 'program');
 #endif
-    program = GL.programs[program];
+    program = GL.programs.get(program);
     var info = GLctx['getTransformFeedbackVarying'](program, index);
     if (!info) return; // If an error occurred, the return parameters length, size, type and name will be unmodified.
 
@@ -521,7 +521,7 @@ var LibraryWebGL2 = {
 #if GL_ASSERTIONS
     GL.validateGLObjectID(GL.buffers, buffer, 'glBindBufferBase', 'buffer');
 #endif
-    GLctx['bindBufferBase'](target, index, GL.buffers[buffer]);
+    GLctx['bindBufferBase'](target, index, GL.buffers.get(buffer));
   },
 
   glBindBufferRange__sig: 'viiiii',
@@ -529,7 +529,7 @@ var LibraryWebGL2 = {
 #if GL_ASSERTIONS
     GL.validateGLObjectID(GL.buffers, buffer, 'glBindBufferRange', 'buffer');
 #endif
-    GLctx['bindBufferRange'](target, index, GL.buffers[buffer], offset, ptrsize);
+    GLctx['bindBufferRange'](target, index, GL.buffers.get(buffer), offset, ptrsize);
   },
 
   glGetUniformIndices__sig: 'viiii',
@@ -552,7 +552,7 @@ var LibraryWebGL2 = {
       return;
     }
 #endif
-    program = GL.programs[program];
+    program = GL.programs.get(program);
     var names = [];
     for (var i = 0; i < uniformCount; i++)
       names.push(UTF8ToString({{{ makeGetValue('uniformNames', 'i*4', 'i32') }}}));
@@ -586,7 +586,7 @@ var LibraryWebGL2 = {
       return;
     }
 #endif
-    program = GL.programs[program];
+    program = GL.programs.get(program);
     var ids = [];
     for (var i = 0; i < uniformCount; i++) {
       ids.push({{{ makeGetValue('uniformIndices', 'i*4', 'i32') }}});
@@ -606,7 +606,7 @@ var LibraryWebGL2 = {
 #if GL_ASSERTIONS
     GL.validateGLObjectID(GL.programs, program, 'glGetUniformBlockIndex', 'program');
 #endif
-    return GLctx['getUniformBlockIndex'](GL.programs[program], UTF8ToString(uniformBlockName));
+    return GLctx['getUniformBlockIndex'](GL.programs.get(program), UTF8ToString(uniformBlockName));
   },
 
   glGetActiveUniformBlockiv__sig: 'viiii',
@@ -625,7 +625,7 @@ var LibraryWebGL2 = {
 #if GL_ASSERTIONS
     GL.validateGLObjectID(GL.programs, program, 'glGetActiveUniformBlockiv', 'program');
 #endif
-    program = GL.programs[program];
+    program = GL.programs.get(program);
 
     if (pname == 0x8A41 /* GL_UNIFORM_BLOCK_NAME_LENGTH */) {
       var name = GLctx['getActiveUniformBlockName'](program, uniformBlockIndex);
@@ -649,7 +649,7 @@ var LibraryWebGL2 = {
 #if GL_ASSERTIONS
     GL.validateGLObjectID(GL.programs, program, 'glGetActiveUniformBlockName', 'program');
 #endif
-    program = GL.programs[program];
+    program = GL.programs.get(program);
 
     var result = GLctx['getActiveUniformBlockName'](program, uniformBlockIndex);
     if (!result) return; // If an error occurs, nothing will be written to uniformBlockName or length.
@@ -666,7 +666,7 @@ var LibraryWebGL2 = {
 #if GL_ASSERTIONS
     GL.validateGLObjectID(GL.programs, program, 'glUniformBlockBinding', 'program');
 #endif
-    program = GL.programs[program];
+    program = GL.programs.get(program);
 
     GLctx['uniformBlockBinding'](program, uniformBlockIndex, uniformBlockBinding);
   },
@@ -701,13 +701,10 @@ var LibraryWebGL2 = {
   glFenceSync__sig: 'iii',
   glFenceSync: function(condition, flags) {
     var sync = GLctx.fenceSync(condition, flags);
-    if (sync) {
-      var id = GL.getNewId(GL.syncs);
-      sync.name = id;
-      GL.syncs[id] = sync;
-      return id;
+    if (!sync) {
+      return 0; // Failed to create a sync object
     }
-    return 0; // Failed to create a sync object
+    return sync.name = GL.syncs.allocate(sync);
   },
 
   glDeleteSync__sig: 'vi',
@@ -791,7 +788,7 @@ var LibraryWebGL2 = {
 #if GL_ASSERTIONS
     GL.validateGLObjectID(GL.programs, program, 'glGetFragDataLocation', 'program');
 #endif
-    return GLctx['getFragDataLocation'](GL.programs[program], UTF8ToString(name));
+    return GLctx['getFragDataLocation'](GL.programs.get(program), UTF8ToString(name));
   },
 
   glGetVertexAttribIiv__sig: 'viii',
@@ -991,7 +988,7 @@ var LibraryWebGL2 = {
 #if GL_ASSERTIONS
     GL.validateGLObjectID(GL.textures, texture, 'glFramebufferTextureLayer', 'texture');
 #endif
-    GLctx.framebufferTextureLayer(target, attachment, GL.textures[texture], level, layer);
+    GLctx.framebufferTextureLayer(target, attachment, GL.textures.get(texture), level, layer);
   },
 
   glVertexAttribIPointer__sig: 'viiiii',

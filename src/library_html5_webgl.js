@@ -452,30 +452,30 @@ var LibraryHtml5WebGL = {
 
   emscripten_webgl_get_program_parameter_d__proxy: 'sync_on_current_webgl_context_thread',
   emscripten_webgl_get_program_parameter_d: function(program, param) {
-    return GLctx.getProgramParameter(GL.programs[program], param);
+    return GLctx.getProgramParameter(GL.programs.get(program), param);
   },
 
   emscripten_webgl_get_program_info_log_utf8__proxy: 'sync_on_current_webgl_context_thread',
   emscripten_webgl_get_program_info_log_utf8__deps: ['$stringToNewUTF8'],
   emscripten_webgl_get_program_info_log_utf8: function(program) {
-    return stringToNewUTF8(GLctx.getProgramInfoLog(GL.programs[program]));
+    return stringToNewUTF8(GLctx.getProgramInfoLog(GL.programs.get(program)));
   },
 
   emscripten_webgl_get_shader_parameter_d__proxy: 'sync_on_current_webgl_context_thread',
   emscripten_webgl_get_shader_parameter_d: function(shader, param) {
-    return GLctx.getShaderParameter(GL.shaders[shader], param);
+    return GLctx.getShaderParameter(GL.shaders.get(shader), param);
   },
 
   emscripten_webgl_get_shader_info_log_utf8__proxy: 'sync_on_current_webgl_context_thread',
   emscripten_webgl_get_shader_info_log_utf8__deps: ['$stringToNewUTF8'],
   emscripten_webgl_get_shader_info_log_utf8: function(shader) {
-    return stringToNewUTF8(GLctx.getShaderInfoLog(GL.shaders[shader]));
+    return stringToNewUTF8(GLctx.getShaderInfoLog(GL.shaders.get(shader)));
   },
 
   emscripten_webgl_get_shader_source_utf8__proxy: 'sync_on_current_webgl_context_thread',
   emscripten_webgl_get_shader_source_utf8__deps: ['$stringToNewUTF8'],
   emscripten_webgl_get_shader_source_utf8: function(shader) {
-    return stringToNewUTF8(GLctx.getShaderSource(GL.shaders[shader]));
+    return stringToNewUTF8(GLctx.getShaderSource(GL.shaders.get(shader)));
   },
 
   emscripten_webgl_get_vertex_attrib_d__proxy: 'sync_on_current_webgl_context_thread',
@@ -498,13 +498,13 @@ var LibraryHtml5WebGL = {
   emscripten_webgl_get_uniform_d__proxy: 'sync_on_current_webgl_context_thread',
   emscripten_webgl_get_uniform_d__deps: ['$webglGetUniformLocation'],
   emscripten_webgl_get_uniform_d: function(program, location) {
-    return GLctx.getUniform(GL.programs[program], webglGetUniformLocation(location));
+    return GLctx.getUniform(GL.programs.get(program), webglGetUniformLocation(location));
   },
 
   emscripten_webgl_get_uniform_v__proxy: 'sync_on_current_webgl_context_thread',
   emscripten_webgl_get_uniform_v__deps: ['$writeGLArray', '$webglGetUniformLocation'],
   emscripten_webgl_get_uniform_v: function(program, location, dst, dstLength, dstType) {
-    return writeGLArray(GLctx.getUniform(GL.programs[program], webglGetUniformLocation(location)), dst, dstLength, dstType);
+    return writeGLArray(GLctx.getUniform(GL.programs.get(program), webglGetUniformLocation(location)), dst, dstLength, dstType);
   },
 
   emscripten_webgl_get_parameter_v__proxy: 'sync_on_current_webgl_context_thread',

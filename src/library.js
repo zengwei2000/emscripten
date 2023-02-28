@@ -3657,6 +3657,9 @@ mergeInto(LibraryManager.library, {
     // Reserve slot 0 so that 0 is always and invalid handle
     this.allocated = [undefined];
     this.freelist = [];
+    this.has = function(id) {
+      return this.allocated[id] !== undefined;
+    },
     this.get = function(id) {
 #if ASSERTIONS
       assert(this.allocated[id] !== undefined, 'invalid handle: ' + id);

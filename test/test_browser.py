@@ -1771,16 +1771,19 @@ keydown(100);keyup(100); // trigger the end
     self.btest('hello_world_gles.c', expected='0', args=args)
 
   @requires_graphics_hardware
-  def test_glgears_animation(self):
-    for filename in ['hello_world_gles.c', 'hello_world_gles_full.c', 'hello_world_gles_full_944.c']:
-      print(filename)
-      cmd = [test_file(filename), '-o', 'something.html',
-             '-DHAVE_BUILTIN_SINCOS', '-sGL_TESTING', '-lGL', '-lglut',
-             '--shell-file', test_file('hello_world_gles_shell.html')]
-      if 'full' in filename:
-        cmd += ['-sFULL_ES2']
-      self.compile_btest(cmd)
-      self.run_browser('something.html', '/report_gl_result?true')
+  @parameterized({
+    '': ('hello_world_gles.c',),
+    'full': ('hello_world_gles_full.c',),
+    'full_944': ('hello_world_gles_full_944.c',),
+  })
+  def test_glgears_animation(self, filename):
+    cmd = [test_file(filename), '-o', 'something.html',
+           '-DHAVE_BUILTIN_SINCOS', '-sGL_ASSERTIONS', '-sGL_TESTING', '-lGL', '-lglut',
+           '--shell-file', test_file('hello_world_gles_shell.html')]
+    if 'full' in filename:
+      cmd += ['-sFULL_ES2']
+    self.compile_btest(cmd)
+    self.run_browser('something.html', '/report_gl_result?true')
 
   @requires_graphics_hardware
   def test_fulles2_sdlproc(self):

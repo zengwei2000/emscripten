@@ -3929,7 +3929,6 @@ var %(EXPORT_NAME)s = (() => {
     f.write(src)
 
     # Export using a UMD style export, or ES6 exports if selected
-
     if settings.EXPORT_ES6:
       f.write('export default %s;' % settings.EXPORT_NAME)
     elif not settings.MINIMAL_RUNTIME:
@@ -3938,8 +3937,6 @@ if (typeof exports === 'object' && typeof module === 'object')
   module.exports = %(EXPORT_NAME)s;
 else if (typeof define === 'function' && define['amd'])
   define([], function() { return %(EXPORT_NAME)s; });
-else if (typeof exports === 'object')
-  exports["%(EXPORT_NAME)s"] = %(EXPORT_NAME)s;
 ''' % {'EXPORT_NAME': settings.EXPORT_NAME})
 
   shared.get_temp_files().note(final_js)

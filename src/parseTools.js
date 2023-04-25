@@ -211,7 +211,7 @@ function splitI64(value) {
   //
   //  $1$0 = ~~$d >>> 0;
   //  $1$1 = Math.abs($d) >= 1 ? (
-  //     $d > 0 ? Math.floor(($d)/ 4294967296.0) >>> 0,
+  //     $d > 0 ? Math.floor(($d)/ 4294967296.0) >>> 0
   //            : Math.ceil(Math.min(-4294967296.0, $d - $1$0)/ 4294967296.0)
   //  ) : 0;
   //
@@ -364,7 +364,7 @@ function makeSetValue(ptr, pos, value, type, noNeedFirst, ignore, align, sep) {
   assert(typeof noNeedFirst === 'undefined', 'makeSetValue no longer supports noNeedFirst parameter');
   assert(typeof sep === 'undefined', 'makeSetValue no longer supports sep parameter');
   if (type == 'i64' && !WASM_BIGINT) {
-    // If we lack either BigInt we must fall back to an reading a pair of I32
+    // If we lack BigInt support we must fall back to an reading a pair of I32
     // values.
     return '(tempI64 = [' + splitI64(value) + '], ' +
             makeSetValue(ptr, pos, 'tempI64[0]', 'i32') + ',' +

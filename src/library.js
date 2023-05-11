@@ -3656,6 +3656,8 @@ mergeInto(LibraryManager.library, {
 #endif
   },
 
+  // General purpose handle allocator, used in various places to map JS
+  // objects to integer IDs that can them be passed to native code.
   $HandleAllocator__docs: '/** @constructor */',
   $HandleAllocator: function() {
     // Reserve slot 0 so that 0 is always an invalid handle
@@ -3666,6 +3668,9 @@ mergeInto(LibraryManager.library, {
       assert(this.allocated[id] !== undefined, 'invalid handle: ' + id);
 #endif
       return this.allocated[id];
+    };
+    this.has = function(id) {
+      return this.allocated[id] !== undefined;
     };
     this.allocate = function(handle) {
       var id = this.freelist.pop() || this.allocated.length;

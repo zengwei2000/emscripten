@@ -2439,9 +2439,9 @@ def phase_linker_setup(options, state, newargs):
     building.user_requested_exports.update(wasm_worker_imports)
     settings.DEFAULT_LIBRARY_FUNCS_TO_INCLUDE += ['$_wasmWorkerInitializeRuntime']
     # set location of Wasm Worker bootstrap JS file
-    if settings.WASM_WORKERS == 1:
-      settings.WASM_WORKER_FILE = unsuffixed(os.path.basename(target)) + '.ww.js'
+    settings.WASM_WORKER_FILE = unsuffixed(os.path.basename(target)) + '.ww.js'
     settings.JS_LIBRARIES.append((0, shared.path_from_root('src', 'library_wasm_worker.js')))
+    generate_wasm_worker_code(target)
 
   # Set min browser versions based on certain settings such as WASM_BIGINT,
   # PTHREADS, AUDIO_WORKLET
@@ -3191,6 +3191,25 @@ def phase_memory_initializer(memfile):
   final_js += '.mem.js'
 
 
+def generate_wasm_worker_code(target):
+  worker_output = os.path.join(os.path.dirname(target), settings.WASM_WORKER_FILE)
+  contents = shared.read_and_preprocess(shared.path_from_root('src/wasm_worker.js'), expand_macros=True)
+  write_file(worker_output, contents)
+
+  # Minify the wasm_worker.js file in optimized builds
+  if settings.WASM_WORKERS == 2 or ((settings.OPT_LEVEL >= 1 or settings.SHRINK_LEVEL >= 1) and not settings.DEBUG_LEVEL):
+    #minified_worker = building.acorn_optimizer(worker_output, ['minifyWhitespace'], return_output=True)
+    minified_worker = building.closure_compiler(worker_output, pretty=False)
+    os.rename(minified_worker, worker_output)
+
+  # With WASM_WORKERS == 1 we deploy the Wasm Worker bootstrap file, but with
+  # WASM_WORKERS == 2 we embed it instead.
+  if settings.WASM_WORKERS == 2:
+    settings.WASM_WORKER_CODE = read_file(worker_output).strip()
+    print(settings.WASM_WORKER_CODE)
+    utils.delete_file(worker_output)
+
+
 @ToolchainProfiler.profile_block('final emitting')
 def phase_final_emitting(options, state, target, wasm_target, memfile):
   global final_js
@@ -3208,17 +3227,6 @@ def phase_final_emitting(options, state, target, wasm_target, memfile):
     write_file(worker_output, contents)
 
     # Minify the worker.js file in optimized builds
-    if (settings.OPT_LEVEL >= 1 or settings.SHRINK_LEVEL >= 1) and not settings.DEBUG_LEVEL:
-      minified_worker = building.acorn_optimizer(worker_output, ['minifyWhitespace'], return_output=True)
-      write_file(worker_output, minified_worker)
-
-  # Deploy the Wasm Worker bootstrap file as an output file (*.ww.js)
-  if settings.WASM_WORKERS == 1:
-    worker_output = os.path.join(target_dir, settings.WASM_WORKER_FILE)
-    contents = shared.read_and_preprocess(shared.path_from_root('src/wasm_worker.js'), expand_macros=True)
-    write_file(worker_output, contents)
-
-    # Minify the wasm_worker.js file in optimized builds
     if (settings.OPT_LEVEL >= 1 or settings.SHRINK_LEVEL >= 1) and not settings.DEBUG_LEVEL:
       minified_worker = building.acorn_optimizer(worker_output, ['minifyWhitespace'], return_output=True)
       write_file(worker_output, minified_worker)

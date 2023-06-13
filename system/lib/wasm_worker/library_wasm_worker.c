@@ -1,3 +1,9 @@
+// libc files are compiled as -std=c99 which doesn't normally declare
+// max_align_t.
+#if __STDC_VERSION__ < 201112L
+#define __NEED_max_align_t
+#endif
+
 #include <assert.h>
 #include <emscripten/wasm_worker.h>
 #include <emscripten/threading.h>
@@ -14,8 +20,7 @@
 #endif
 
 #define ROUND_UP(x, ALIGNMENT) (((x)+ALIGNMENT-1)&-ALIGNMENT)
-#define SBRK_ALIGN (__alignof__(max_align_t))
-#define STACK_ALIGN 16
+#define STACK_ALIGN (__alignof__(max_align_t))
 
 // Options:
 // #define STACK_OVERFLOW_CHECK 0/1/2 : set to the current stack overflow check mode
@@ -30,7 +35,7 @@ static void emscripten_wasm_worker_main_thread_initialize() {
 		*sbrk_ptr = ROUND_UP(*sbrk_ptr, __builtin_wasm_tls_align());
 	}
 	__wasm_init_tls((void*)*sbrk_ptr);
-	*sbrk_ptr += ROUND_UP(__builtin_wasm_tls_size(), SBRK_ALIGN);
+	*sbrk_ptr += ROUND_UP(__builtin_wasm_tls_size(), STACK_ALIGN);
 }
 
 emscripten_wasm_worker_t emscripten_create_wasm_worker(void *stackPlusTLSAddress, size_t stackPlusTLSSize)

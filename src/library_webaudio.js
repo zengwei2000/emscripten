@@ -137,10 +137,11 @@ let LibraryWebAudio = {
       audioWorklet = audioContext.audioWorklet;
 
 #if ASSERTIONS
+    var stackAlign = {{{ STACK_ALIGN }}};
     assert(stackLowestAddress != 0, 'AudioWorklets require a dedicated stack space for audio data marshalling between Wasm and JS!');
-    assert(stackLowestAddress % 16 == 0, `AudioWorklet stack should be aligned to 16 bytes! (was ${stackLowestAddress} == ${stackLowestAddress%16} mod 16) Use e.g. memalign(16, stackSize) to align the stack!`);
+    assert(stackLowestAddress % stackAlign == 0, `AudioWorklet stack should be aligned to ${stackAlign} bytes! (was ${stackLowestAddress} == ${stackLowestAddress%stackAlign} mod ${stackAlign}) Use e.g. memalign(${stackAlign}, stackSize) to align the stack!`);
     assert(stackSize != 0, 'AudioWorklets require a dedicated stack space for audio data marshalling between Wasm and JS!');
-    assert(stackSize % 16 == 0, `AudioWorklet stack size should be a multiple of 16 bytes! (was ${stackSize} == ${stackSize%16} mod 16)`);
+    assert(stackSize % stackAlign == 0, `AudioWorklet stack size should be a multiple of ${stackAlign} bytes! (was ${stackSize} == ${stackSize%stackAlign} mod ${stackAlign})`);
     assert(!audioContext.audioWorkletInitialized, 'emscripten_create_wasm_audio_worklet() was already called for AudioContext ' + contextHandle + '! Only call this function once per AudioContext!');
     audioContext.audioWorkletInitialized = 1;
 #endif

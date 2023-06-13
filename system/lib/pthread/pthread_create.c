@@ -5,6 +5,12 @@
  * found in the LICENSE file.
  */
 
+// libc files are compiled as -std=c99 which doesn't normally declare
+// max_align_t.
+#if __STDC_VERSION__ < 201112L
+#define __NEED_max_align_t
+#endif
+
 #define _GNU_SOURCE
 #include "pthread_impl.h"
 #include "stdio_impl.h"
@@ -17,7 +23,7 @@
 #include <emscripten/heap.h>
 #include <emscripten/threading.h>
 
-#define STACK_ALIGN 16
+#define STACK_ALIGN (__alignof__(max_align_t))
 #define TSD_ALIGN (sizeof(void*))
 
 // Comment this line to enable tracing of thread creation and destruction:

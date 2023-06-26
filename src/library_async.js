@@ -462,7 +462,18 @@ mergeInto(LibraryManager.library, {
     return Asyncify.handleSleep((wakeUp) => safeSetTimeout(wakeUp, ms));
   },
 
-  emscripten_wget__deps: ['$Browser', '$PATH_FS', '$FS'],
+  emscripten_wget__deps: [
+    '$Browser', '$PATH_FS', '$FS',
+#if WASMFS
+    // The code below will potentially unlink an existing file that we
+    // overwrite, then create the directory if necessary, and then create and
+    // write to the file.
+    '_wasmfs_unlink',
+    '_wasmfs_mkdir',
+    '_wasmfs_mknod',
+    '_wasmfs_write_file',
+#endif
+  ],
   emscripten_wget__async: true,
   emscripten_wget: function(url, file) {
     return Asyncify.handleSleep((wakeUp) => {

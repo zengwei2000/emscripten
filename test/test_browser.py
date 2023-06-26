@@ -2842,6 +2842,7 @@ Module["preRun"].push(function () {
       print(opts)
       self.btest_exit(test_file('test_sdl_mousewheel.c'), args=opts + ['-DAUTOMATE_SUCCESS=1', '-lSDL', '-lGL'])
 
+  @also_with_wasmfs
   def test_wget(self):
     create_file('test.txt', 'emscripten')
     self.btest_exit(test_file('test_wget.c'), args=['-sASYNCIFY'])

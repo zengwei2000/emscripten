@@ -125,26 +125,11 @@ FS.createPreloadedFile = FS_createPreloadedFile;
     },
 #endif
 
-#if hasExportedSymbol('_wasmfs_get_cwd') // Similar to readFile, above.
+#if hasExportedSymbol('_wasmfs_get_cwd')
     cwd: () => UTF8ToString(__wasmfs_get_cwd()),
 #endif
 
-#if FORCE_FILESYSTEM || INCLUDE_FULL_LIBRARY // see comment above
-    // Full JS API support
-
-    analyzePath: (path) => {
-      // TODO: Consider simplifying this API, which for now matches the JS FS.
-      var exists = !!FS.findObject(path);
-      return {
-        exists,
-        object: {
-          contents: exists ? FS.readFile(path) : null
-        }
-      };
-    },
-
-    // libc methods
-
+#if hasExportedSymbol('_wasmfs_mkdir')
     mkdir: (path, mode) => FS.handleError(withStackSave(() => {
       mode = mode !== undefined ? mode : 511 /* 0777 */;
       var buffer = stringToUTF8OnStack(path);
@@ -163,6 +148,68 @@ FS.createPreloadedFile = FS_createPreloadedFile;
         }
       }
     },
+#endif
+
+#if hasExportedSymbol('_wasmfs_unlink')
+    unlink: (path) => withStackSave(() => {
+      var buffer = stringToUTF8OnStack(path);
+      return __wasmfs_unlink(buffer);
+    }),
+#endif
+
+#if hasExportedSymbol('_wasmfs_mknod')
+    create: (path, mode) => {
+      // Default settings copied from the legacy JS FS API.
+      mode = mode !== undefined ? mode : 438 /* 0666 */;
+      mode &= {{{ cDefs.S_IALLUGO }}};
+      mode |= {{{ cDefs.S_IFREG }}};
+      return FS.mknod(path, mode, 0);
+    },
+    mknod: (path, mode, dev) => {
+      return FS.handleError(withStackSave(() => {
+        var pathBuffer = stringToUTF8OnStack(path);
+        return __wasmfs_mknod(pathBuffer, mode, dev);
+      }));
+    },
+#endif
+
+#if hasExportedSymbol('_wasmfs_write_file')
+    writeFile: (path, data) => withStackSave(() => {
+      var pathBuffer = stringToUTF8OnStack(path);
+      if (typeof data == 'string') {
+        var buf = new Uint8Array(lengthBytesUTF8(data) + 1);
+        var actualNumBytes = stringToUTF8Array(data, buf, 0, buf.length);
+        data = buf.slice(0, actualNumBytes);
+      }
+      var dataBuffer = _malloc(data.length);
+#if ASSERTIONS
+      assert(dataBuffer);
+#endif
+      for (var i = 0; i < data.length; i++) {
+        {{{ makeSetValue('dataBuffer', 'i', 'data[i]', 'i8') }}};
+      }
+      var ret = __wasmfs_write_file(pathBuffer, dataBuffer, data.length);
+      _free(dataBuffer);
+      return ret;
+    }),
+#endif
+
+#if FORCE_FILESYSTEM || INCLUDE_FULL_LIBRARY // see comment above
+    // Full JS API support
+
+    analyzePath: (path) => {
+      // TODO: Consider simplifying this API, which for now matches the JS FS.
+      var exists = !!FS.findObject(path);
+      return {
+        exists,
+        object: {
+          contents: exists ? FS.readFile(path) : null
+        }
+      };
+    },
+
+    // libc methods
+
     rmdir: (path) => FS.handleError(
       withStackSave(() => __wasmfs_rmdir(stringToUTF8OnStack(path)))
     ),
@@ -173,18 +220,7 @@ FS.createPreloadedFile = FS_createPreloadedFile;
       var fd = FS.handleError(__wasmfs_open({{{ to64('buffer') }}}, flags, mode));
       return { fd : fd };
     }),
-    create: (path, mode) => {
-      // Default settings copied from the legacy JS FS API.
-      mode = mode !== undefined ? mode : 438 /* 0666 */;
-      mode &= {{{ cDefs.S_IALLUGO }}};
-      mode |= {{{ cDefs.S_IFREG }}};
-      return FS.mknod(path, mode, 0);
-    },
     close: (stream) => FS.handleError(-__wasmfs_close(stream.fd)),
-    unlink: (path) => withStackSave(() => {
-      var buffer = stringToUTF8OnStack(path);
-      return __wasmfs_unlink(buffer);
-    }),
     chdir: (path) => withStackSave(() => {
       var buffer = stringToUTF8OnStack(path);
       return __wasmfs_chdir(buffer);
@@ -235,24 +271,6 @@ FS.createPreloadedFile = FS_createPreloadedFile;
     // TODO: mmap
     // TODO: msync
     // TODO: munmap
-    writeFile: (path, data) => withStackSave(() => {
-      var pathBuffer = stringToUTF8OnStack(path);
-      if (typeof data == 'string') {
-        var buf = new Uint8Array(lengthBytesUTF8(data) + 1);
-        var actualNumBytes = stringToUTF8Array(data, buf, 0, buf.length);
-        data = buf.slice(0, actualNumBytes);
-      }
-      var dataBuffer = _malloc(data.length);
-#if ASSERTIONS
-      assert(dataBuffer);
-#endif
-      for (var i = 0; i < data.length; i++) {
-        {{{ makeSetValue('dataBuffer', 'i', 'data[i]', 'i8') }}};
-      }
-      var ret = __wasmfs_write_file(pathBuffer, dataBuffer, data.length);
-      _free(dataBuffer);
-      return ret;
-    }),
     symlink: (target, linkpath) => withStackSave(() => (
       __wasmfs_symlink(stringToUTF8OnStack(target), stringToUTF8OnStack(linkpath))
     )),
@@ -352,12 +370,6 @@ FS.createPreloadedFile = FS_createPreloadedFile;
     // TODO: mount
     // TODO: unmount
     // TODO: lookup
-    mknod: (path, mode, dev) => {
-      return FS.handleError(withStackSave(() => {
-        var pathBuffer = stringToUTF8OnStack(path);
-        return __wasmfs_mknod(pathBuffer, mode, dev);
-      }));
-    },
     // TODO: mkdev
     rename: (oldPath, newPath) => {
       return FS.handleError(withStackSave(() => {
